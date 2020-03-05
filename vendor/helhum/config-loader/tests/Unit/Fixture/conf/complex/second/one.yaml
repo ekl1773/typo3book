@@ -1,3 +1,0 @@
-imports:
-    - {resource: 'two.yaml'}
-key_second_one: second_one

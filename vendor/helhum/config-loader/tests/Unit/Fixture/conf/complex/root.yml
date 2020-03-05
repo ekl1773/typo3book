@@ -1,5 +1,0 @@
-imports:
-    - {resource: 'one.yaml'}
-    - {resource: 'second/one.yaml'}
-    - {resource: 'FOO', type: env}
-    - {resource: 'second/three.yaml'}
