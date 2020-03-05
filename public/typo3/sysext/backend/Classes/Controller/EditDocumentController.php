@@ -579,6 +579,7 @@ class EditDocumentController
         if (!is_array($this->defVals) && is_array($this->overrideVals)) {
             $this->defVals = $this->overrideVals;
         }
+        $this->addSlugFieldsToColumnsOnly($queryParams);
 
         // Set final return URL
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
@@ -635,6 +636,28 @@ class EditDocumentController
     }
 
     /**
+     * Always add required fields of slug field
+     *
+     * @param array $queryParams
+     */
+    protected function addSlugFieldsToColumnsOnly(array $queryParams): void
+    {
+        $data = $queryParams['edit'] ?? [];
+        $data = array_keys($data);
+        $table = reset($data);
+        if ($this->columnsOnly && $table !== false && isset($GLOBALS['TCA'][$table])) {
+            $fields = GeneralUtility::trimExplode(',', $this->columnsOnly, true);
+            foreach ($fields as $field) {
+                if (isset($GLOBALS['TCA'][$table]['columns'][$field]) && $GLOBALS['TCA'][$table]['columns'][$field]['config']['type'] === 'slug') {
+                    foreach ($GLOBALS['TCA'][$table]['columns'][$field]['config']['generatorOptions']['fields'] as $fields) {
+                        $this->columnsOnly .= ',' . (is_array($fields) ? implode(',', $fields) : $fields);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Do processing of data, submitting it to DataHandler. May return a RedirectResponse
      *
      * @param ServerRequestInterface $request
@@ -674,11 +697,6 @@ class EditDocumentController
 
         $tce->setControl($parsedBody['control'] ?? $queryParams['control'] ?? []);
 
-        // Set default values specific for the user
-        $TCAdefaultOverride = $beUser->getTSConfig()['TCAdefaults.'] ?? null;
-        if (is_array($TCAdefaultOverride)) {
-            $tce->setDefaultsFromUserTS($TCAdefaultOverride);
-        }
         // Set internal vars
         if (isset($beUser->uc['neverHideAtCopy']) && $beUser->uc['neverHideAtCopy']) {
             $tce->neverHideAtCopy = 1;
@@ -1031,6 +1049,11 @@ class EditDocumentController
             if ($language > 0) {
                 $linkParameters['L'] = $language;
             }
+        }
+
+        // Always use live workspace record uid for the preview
+        if (BackendUtility::isTableWorkspaceEnabled($table) && $recordArray['t3ver_oid'] > 0) {
+            $recordId = $recordArray['t3ver_oid'];
         }
 
         // map record data to GET parameters
@@ -1427,20 +1450,22 @@ class EditDocumentController
         ) {
             $this->registerSaveButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 2);
             $this->registerViewButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 3);
-            $this->registerNewButtonToButtonBar(
-                $buttonBar,
-                ButtonBar::BUTTON_POSITION_LEFT,
-                4,
-                $sysLanguageUid,
-                $l18nParent
-            );
-            $this->registerDuplicationButtonToButtonBar(
-                $buttonBar,
-                ButtonBar::BUTTON_POSITION_LEFT,
-                5,
-                $sysLanguageUid,
-                $l18nParent
-            );
+            if ($this->firstEl['cmd'] !== 'new') {
+                $this->registerNewButtonToButtonBar(
+                    $buttonBar,
+                    ButtonBar::BUTTON_POSITION_LEFT,
+                    4,
+                    $sysLanguageUid,
+                    $l18nParent
+                );
+                $this->registerDuplicationButtonToButtonBar(
+                    $buttonBar,
+                    ButtonBar::BUTTON_POSITION_LEFT,
+                    5,
+                    $sysLanguageUid,
+                    $l18nParent
+                );
+            }
             $this->registerDeleteButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 6);
             $this->registerColumnsOnlyButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 7);
             $this->registerHistoryButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 1);
@@ -1832,8 +1857,8 @@ class EditDocumentController
                 ])
                 ->setHref('#')
                 ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                   'actions-edit-delete',
-                   Icon::SIZE_SMALL
+                    'actions-edit-delete',
+                    Icon::SIZE_SMALL
                 ))
                 ->setShowLabelText(true)
                 ->setTitle($this->getLanguageService()->getLL('deleteItem'));
@@ -2559,11 +2584,11 @@ class EditDocumentController
                     // The input record was online and an offline version must be found or made:
                     // Look for version of this workspace:
                     $versionRec = BackendUtility::getWorkspaceVersionOfRecord(
-                            $this->getBackendUser()->workspace,
-                            $table,
-                            $reqRecord['uid'],
-                            'uid,pid,t3ver_oid'
-                        );
+                        $this->getBackendUser()->workspace,
+                        $table,
+                        $reqRecord['uid'],
+                        'uid,pid,t3ver_oid'
+                    );
                     return is_array($versionRec) ? $versionRec : $reqRecord;
                 }
                 // This means that editing cannot occur on this record because it was not supporting versioning

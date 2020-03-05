@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
 
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Routing\UnableToLinkToPageException;
 use TYPO3\CMS\Core\Type\Bitmask\JsConfirmation;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -292,6 +293,9 @@ class RecordProvider extends AbstractProvider
         if ($itemName === 'view') {
             $attributes += $this->getViewAdditionalAttributes();
         }
+        if ($itemName === 'enable' || $itemName === 'disable') {
+            $attributes += $this->getEnableDisableAdditionalAttributes();
+        }
         if ($itemName === 'newWizard' && $this->table === 'tt_content') {
             $moduleName = BackendUtility::getPagesTSconfig($this->record['pid'])['mod.']['newContentElementWizard.']['override']
                 ?? 'new_content_element_wizard';
@@ -340,6 +344,18 @@ class RecordProvider extends AbstractProvider
     }
 
     /**
+     * Additional attributes for the hide & unhide items
+     *
+     * @return array
+     */
+    protected function getEnableDisableAdditionalAttributes(): array
+    {
+        return [
+            'data-disable-field' => $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'] ?? ''
+        ];
+    }
+
+    /**
      * Additional attributes for the pasteInto and pasteAfter items
      *
      * @param string $type "after" or "into"
@@ -347,6 +363,8 @@ class RecordProvider extends AbstractProvider
      */
     protected function getPasteAdditionalAttributes(string $type): array
     {
+        $closeText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:cancel');
+        $okText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:ok');
         $attributes = [];
         if ($this->backendUser->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE)) {
             $selItem = $this->clipboard->getSelectedRecord();
@@ -360,7 +378,9 @@ class RecordProvider extends AbstractProvider
             );
             $attributes += [
                 'data-title' => htmlspecialchars($title),
-                'data-message' => htmlspecialchars($confirmMessage)
+                'data-message' => htmlspecialchars($confirmMessage),
+                'data-button-close-text' => htmlspecialchars($closeText),
+                'data-button-ok-text' => htmlspecialchars($okText),
             ];
         }
         return $attributes;
@@ -373,6 +393,8 @@ class RecordProvider extends AbstractProvider
      */
     protected function getDeleteAdditionalAttributes(): array
     {
+        $closeText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:cancel');
+        $okText = $this->languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:delete');
         $attributes = [];
         if ($this->backendUser->jsConfirmation(JsConfirmation::DELETE)) {
             $recordTitle = GeneralUtility::fixed_lgd_cs(BackendUtility::getRecordTitle($this->table, $this->record), $this->backendUser->uc['titleLen']);
@@ -394,7 +416,9 @@ class RecordProvider extends AbstractProvider
             );
             $attributes += [
                 'data-title' => htmlspecialchars($title),
-                'data-message' => htmlspecialchars($confirmMessage)
+                'data-message' => htmlspecialchars($confirmMessage),
+                'data-button-close-text' => htmlspecialchars($closeText),
+                'data-button-ok-text' => htmlspecialchars($okText),
             ];
         }
         return $attributes;
@@ -426,21 +450,19 @@ class RecordProvider extends AbstractProvider
                 $additionalParams = '&L=' . $language;
             }
         }
-        $javascriptLink = BackendUtility::viewOnClick(
-            $this->getPreviewPid(),
-            '',
-            null,
-            $anchorSection,
-            '',
-            $additionalParams
-        );
-        $extractedLink = '';
-        if (preg_match('/window\\.open\\(\'([^\']+)\'/i', $javascriptLink, $match)) {
-            // Clean JSON-serialized ampersands ('&')
-            // @see GeneralUtility::quoteJSvalue()
-            $extractedLink = json_decode('"' . trim($match[1], '"') . '"');
+
+        try {
+            return BackendUtility::getPreviewUrl(
+                $this->getPreviewPid(),
+                '',
+                null,
+                $anchorSection,
+                '',
+                $additionalParams
+            );
+        } catch (UnableToLinkToPageException $e) {
+            return '';
         }
-        return $extractedLink;
     }
 
     /**
@@ -493,7 +515,8 @@ class RecordProvider extends AbstractProvider
 
         $access = !$this->isRecordLocked()
             && $this->backendUser->check('tables_modify', $this->table)
-            && $this->hasPagePermission(Permission::CONTENT_EDIT);
+            && $this->hasPagePermission(Permission::CONTENT_EDIT)
+            && $this->backendUser->recordEditAccessInternals($this->table, $this->record);
         return $access;
     }
 

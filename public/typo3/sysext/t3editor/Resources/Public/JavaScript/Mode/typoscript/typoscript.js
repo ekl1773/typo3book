@@ -71,7 +71,6 @@
         'allWrap': kw('allWrap'),
         'alt_print': A,
         'alternativeSortingField': kw('alternativeSortingField'),
-        'alternativeTempPath': kw('alternativeTempPath'),
         'altIcons': kw('altIcons'),
         'altImgResource': kw('altImgResource'),
         'altLabels': kw('altLabels'),
@@ -569,7 +568,6 @@
         'menuName': kw('menuName'),
         'menuOffset': kw('menuOffset'),
         'menuWidth': kw('menuWidth'),
-        'message_page_is_being_generated': kw('message_page_is_being_generated'),
         'message_preview': kw('message_preview'),
         'META': kw('META'),
         'meta': kw('meta'),
@@ -1181,7 +1179,8 @@
       // (Less wasteful than consing up a hundred closures on every call.)
       cx.state = state;
       cx.stream = stream;
-      cx.marked = null, cx.cc = cc;
+      cx.marked = null;
+      cx.cc = cc;
       cx.style = style;
 
       if (!state.lexical.hasOwnProperty("align"))
@@ -1189,8 +1188,8 @@
 
       while (true) {
         var combinator = cc.length ? cc.pop() : statement;
-        if (combinator(type, content)) {
-          while (cc.length && cc[cc.length - 1].lex)
+        if (typeof combinator === 'function' && combinator(type, content)) {
+          while (cc.length && cc[cc.length - 1] && cc[cc.length - 1].lex)
             cc.pop()();
           if (cx.marked) return cx.marked;
           if (type === "variable" && inScope(state, content)) return "variable-2";

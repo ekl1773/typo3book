@@ -138,12 +138,11 @@ class GeneralUtility
      *
      *************************/
     /**
-     * Returns the 'GLOBAL' value of incoming data from POST or GET, with priority to POST (that is equalent to 'GP' order)
-     * To enhance security in your scripts, please consider using GeneralUtility::_GET or GeneralUtility::_POST if you already
-     * know by which method your data is arriving to the scripts!
+     * Returns the 'GLOBAL' value of incoming data from POST or GET, with priority to POST, which is equalent to 'GP' order
+     * In case you already know by which method your data is arriving consider using GeneralUtility::_GET or GeneralUtility::_POST.
      *
      * @param string $var GET/POST var to return
-     * @return mixed POST var named $var and if not set, the GET var of the same name.
+     * @return mixed POST var named $var, if not set, the GET var of the same name and if also not set, NULL.
      */
     public static function _GP($var)
     {
@@ -181,11 +180,10 @@ class GeneralUtility
 
     /**
      * Returns the global $_GET array (or value from) normalized to contain un-escaped values.
-     * ALWAYS use this API function to acquire the GET variables!
      * This function was previously used to normalize between magic quotes logic, which was removed from PHP 5.5
      *
      * @param string $var Optional pointer to value in GET array (basically name of GET var)
-     * @return mixed If $var is set it returns the value of $_GET[$var]. If $var is NULL (default), returns $_GET itself. In any case *slashes are stipped from the output!*
+     * @return mixed If $var is set it returns the value of $_GET[$var]. If $var is NULL (default), returns $_GET itself.
      * @see _POST(), _GP()
      */
     public static function _GET($var = null)
@@ -202,10 +200,9 @@ class GeneralUtility
 
     /**
      * Returns the global $_POST array (or value from) normalized to contain un-escaped values.
-     * ALWAYS use this API function to acquire the $_POST variables!
      *
      * @param string $var Optional pointer to value in POST array (basically name of POST var)
-     * @return mixed If $var is set it returns the value of $_POST[$var]. If $var is NULL (default), returns $_POST itself. In any case *slashes are stipped from the output!*
+     * @return mixed If $var is set it returns the value of $_POST[$var]. If $var is NULL (default), returns $_POST itself.
      * @see _GET(), _GP()
      */
     public static function _POST($var = null)
@@ -737,7 +734,7 @@ class GeneralUtility
             }
             $hmac = call_user_func($hashAlgorithm, ($key ^ $opad) . pack('H*', call_user_func(
                 $hashAlgorithm,
-                    ($key ^ $ipad) . $input
+                ($key ^ $ipad) . $input
             )));
         }
         return $hmac;
@@ -1284,7 +1281,7 @@ class GeneralUtility
             if ($val !== '=') {
                 if ($valuemode) {
                     if ($name) {
-                        $attributes[$name] = $val;
+                        $attributes[$name] = htmlspecialchars_decode($val, ENT_NOQUOTES);
                         $name = '';
                     }
                 } else {
@@ -2191,14 +2188,24 @@ class GeneralUtility
         if (file_exists($path)) {
             $OK = true;
             if (!is_link($path) && is_dir($path)) {
-                if ($removeNonEmpty == true && ($handle = @opendir($path))) {
-                    while ($OK && false !== ($file = readdir($handle))) {
+                if ($removeNonEmpty === true && ($handle = @opendir($path))) {
+                    $entries = [];
+
+                    while (false !== ($file = readdir($handle))) {
                         if ($file === '.' || $file === '..') {
                             continue;
                         }
-                        $OK = static::rmdir($path . '/' . $file, $removeNonEmpty);
+
+                        $entries[] = $path . '/' . $file;
                     }
+
                     closedir($handle);
+
+                    foreach ($entries as $entry) {
+                        if (!static::rmdir($entry, $removeNonEmpty)) {
+                            $OK = false;
+                        }
+                    }
                 }
                 if ($OK) {
                     $OK = @rmdir($path);
@@ -2260,9 +2267,10 @@ class GeneralUtility
     /**
      * Returns an array with the names of folders in a specific path
      * Will return 'error' (string) if there were an error with reading directory content.
+     * Will return null if provided path is false.
      *
      * @param string $path Path to list directories from
-     * @return array Returns an array with the directory entries as values. If no path, the return value is nothing.
+     * @return array|string|null Returns an array with the directory entries as values. If no path is provided, the return value will be null.
      */
     public static function get_dirs($path)
     {
@@ -3184,9 +3192,9 @@ class GeneralUtility
             // is relative. Prepended with the public web folder
             $filename = Environment::getPublicPath() . '/' . $filename;
         } elseif (!(
-                  static::isFirstPartOfStr($filename, Environment::getProjectPath())
+            static::isFirstPartOfStr($filename, Environment::getProjectPath())
                   || static::isFirstPartOfStr($filename, Environment::getPublicPath())
-                )) {
+        )) {
             // absolute, but set to blank if not allowed
             $filename = '';
         }
@@ -3222,6 +3230,9 @@ class GeneralUtility
      */
     public static function isAbsPath($path)
     {
+        if (substr($path, 0, 6) === 'vfs://') {
+            return true;
+        }
         return isset($path[0]) && $path[0] === '/' || Environment::isWindows() && (strpos($path, ':/') === 1 || strpos($path, ':\\') === 1);
     }
 
@@ -3233,13 +3244,16 @@ class GeneralUtility
      */
     public static function isAllowedAbsPath($path)
     {
+        if (substr($path, 0, 6) === 'vfs://') {
+            return true;
+        }
         $lockRootPath = $GLOBALS['TYPO3_CONF_VARS']['BE']['lockRootPath'];
         return static::isAbsPath($path) && static::validPathStr($path)
             && (
                 static::isFirstPartOfStr($path, Environment::getProjectPath())
                 || static::isFirstPartOfStr($path, Environment::getPublicPath())
                 || $lockRootPath && static::isFirstPartOfStr($path, $lockRootPath)
-               );
+            );
     }
 
     /**

@@ -230,11 +230,6 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
 
         if ($isOutputting) {
             $response->getBody()->write($controller->content);
-            // if any code set a response code that is not 200 clear the cache's content
-            // if we fail to do so we would deliver cache content with a wrong header, which causes big mess.
-            if (http_response_code() !== 200 || $response->getStatusCode() !== 200) {
-                $controller->clearPageCacheContent();
-            }
         }
 
         return $isOutputting ? $response : new NullResponse();
@@ -296,7 +291,7 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
         $direction = $controller->config['config']['htmlTag_dir'] ?? null;
         if ($siteLanguage !== null) {
             $direction = $siteLanguage->getDirection();
-            $htmlLang = $siteLanguage->getTwoLetterIsoCode();
+            $htmlLang = $siteLanguage->getHreflang();
         }
 
         if ($direction) {
@@ -487,7 +482,8 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
                                 // To fix MSIE 6 that cannot handle these as relative paths (according to Ben v Ende)
                                 $ss = GeneralUtility::dirname(GeneralUtility::getIndpEnv('SCRIPT_NAME')) . '/' . $ss;
                             }
-                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '") ' . htmlspecialchars($cssFileConfig['media']) . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
+                            $cssMedia = !empty($cssFileConfig['media']) ? ' ' . htmlspecialchars($cssFileConfig['media']) : '';
+                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '")' . $cssMedia . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
                         } else {
                             $pageRenderer->addCssFile(
                                 $ss,
@@ -529,7 +525,8 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
                                 // To fix MSIE 6 that cannot handle these as relative paths (according to Ben v Ende)
                                 $ss = GeneralUtility::dirname(GeneralUtility::getIndpEnv('SCRIPT_NAME')) . '/' . $ss;
                             }
-                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '") ' . htmlspecialchars($cssFileConfig['media']) . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
+                            $cssMedia = !empty($cssFileConfig['media']) ? ' ' . htmlspecialchars($cssFileConfig['media']) : '';
+                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '")' . $cssMedia . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
                         } else {
                             $pageRenderer->addCssLibrary(
                                 $ss,
@@ -802,7 +799,7 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
 
         if ($controller->spamProtectEmailAddresses && $controller->spamProtectEmailAddresses !== 'ascii') {
             $scriptJsCode = '
-			// decrypt helper function
+			/* decrypt helper function */
 		function decryptCharcode(n,start,end,offset) {
 			n = n + offset;
 			if (offset > 0 && n > end) {
@@ -812,25 +809,25 @@ class RequestHandler implements RequestHandlerInterface, PsrRequestHandlerInterf
 			}
 			return String.fromCharCode(n);
 		}
-			// decrypt string
+			/* decrypt string */
 		function decryptString(enc,offset) {
 			var dec = "";
 			var len = enc.length;
 			for(var i=0; i < len; i++) {
 				var n = enc.charCodeAt(i);
 				if (n >= 0x2B && n <= 0x3A) {
-					dec += decryptCharcode(n,0x2B,0x3A,offset);	// 0-9 . , - + / :
+					dec += decryptCharcode(n,0x2B,0x3A,offset);	/* 0-9 . , - + / : */
 				} else if (n >= 0x40 && n <= 0x5A) {
-					dec += decryptCharcode(n,0x40,0x5A,offset);	// A-Z @
+					dec += decryptCharcode(n,0x40,0x5A,offset);	/* A-Z @ */
 				} else if (n >= 0x61 && n <= 0x7A) {
-					dec += decryptCharcode(n,0x61,0x7A,offset);	// a-z
+					dec += decryptCharcode(n,0x61,0x7A,offset);	/* a-z */
 				} else {
 					dec += enc.charAt(i);
 				}
 			}
 			return dec;
 		}
-			// decrypt spam-protected emails
+			/* decrypt spam-protected emails */
 		function linkTo_UnCryptMailto(s) {
 			location.href = decryptString(s,' . $controller->spamProtectEmailAddresses * -1 . ');
 		}

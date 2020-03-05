@@ -21,7 +21,7 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * Modifies the case of an input string to upper- or lowercase or capitalization.
- * The default transformation will be uppercase as in ``mb_convert_case`` [1].
+ * The default transformation will be uppercase as in `mb_convert_case`_.
  *
  * Possible modes are:
  *
@@ -40,26 +40,35 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * ``capitalWords``
  *   Not supported yet: Transforms the input string to each containing word being capitalized
  *
- * Note that the behavior will be the same as in the appropriate PHP function ``mb_convert_case`` [1];
+ * Note that the behavior will be the same as in the appropriate PHP function `mb_convert_case`_;
  * especially regarding locale and multibyte behavior.
  *
- * @see http://php.net/manual/function.mb-convert-case.php [1]
+ * .. _mb_convert_case: https://www.php.net/manual/function.mb-convert-case.php
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Example">
- * <f:format.case>Some Text with miXed case</f:format.case>
- * </code>
- * <output>
- * SOME TEXT WITH MIXED CASE
- * </output>
+ * Default
+ * -------
  *
- * <code title="Example with given mode">
- * <f:format.case mode="capital">someString</f:format.case>
- * </code>
- * <output>
- * SomeString
- * </output>
+ * ::
+ *
+ *    <f:format.case>Some Text with miXed case</f:format.case>
+ *
+ * Output::
+ *
+ *    SOME TEXT WITH MIXED CASE
+ *
+ * Example with given mode
+ * -----------------------
+ *
+ * ::
+ *
+ *    <f:format.case mode="capital">someString</f:format.case>
+ *
+ * Output::
+ *
+ *    SomeString
  */
 class CaseViewHelper extends AbstractViewHelper
 {

@@ -16,7 +16,9 @@ namespace TYPO3\CMS\Core\Database\Schema;
  * The TYPO3 project - inspiring people to share!
  */
 
+use Doctrine\DBAL\Platforms\SqlitePlatform;
 use Doctrine\DBAL\Schema\Table;
+use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -40,8 +42,6 @@ class DefaultTcaSchema
      * "soft delete" ['ctrl']['delete'] and adds the field if it has not been
      * defined in ext_tables.sql, yet.
      *
-     * Note the incoming $tables array must be created from all ext_tables.sql files
-     * of all loaded extensions, and TCA must be up-to-date.
      *
      * @param Table[] $tables
      * @return Table[]
@@ -50,20 +50,15 @@ class DefaultTcaSchema
     {
         foreach ($GLOBALS['TCA'] as $tableName => $tableDefinition) {
             $isTableDefined = $this->isTableDefined($tables, $tableName);
-            $tablePosition = null;
-            if ($isTableDefined) {
-                // If the table is given in existing $tables list, add all fields to the first
-                // position of that table - in case it is in there multiple times which happens
-                // if extensions add single fields to tables that have been defined in
-                // other ext_tables.sql, too.
-                $tablePosition = $this->getTableFirstPosition($tables, $tableName);
-            } else {
-                // Else create this table and add it to table list
-                $table = GeneralUtility::makeInstance(Table::class, $tableName);
-                $tables[] = $table;
-                $tableKeys = array_keys($tables);
-                $tablePosition = end($tableKeys);
+            if (!$isTableDefined) {
+                continue;
             }
+
+            // If the table is given in existing $tables list, add all fields to the first
+            // position of that table - in case it is in there multiple times which happens
+            // if extensions add single fields to tables that have been defined in
+            // other ext_tables.sql, too.
+            $tablePosition = $this->getTableFirstPosition($tables, $tableName);
 
             // uid column and primary key if uid is not defined
             if (!$this->isColumnDefinedForTable($tables, $tableName, 'uid')) {
@@ -76,7 +71,10 @@ class DefaultTcaSchema
                         'autoincrement' => true,
                     ]
                 );
-                $tables[$tablePosition]->setPrimaryKey(['uid']);
+                // SQLite does not need primary key, only needs autoincrement on integer fields
+                if (!$this->tableRunsOnSqlite($tableName)) {
+                    $tables[$tablePosition]->setPrimaryKey(['uid']);
+                }
             }
 
             // pid column and prepare parent key if pid is not defined
@@ -316,6 +314,7 @@ class DefaultTcaSchema
                         'unsigned' => true,
                     ]
                 );
+                $tables[$tablePosition]->addIndex([$tableDefinition['ctrl']['translationSource']], 'translation_source');
             }
 
             // l10n_state column
@@ -700,5 +699,17 @@ class DefaultTcaSchema
     protected function quote(string $identifier): string
     {
         return '`' . $identifier . '`';
+    }
+
+    /**
+     * SQLite does not need primary key, only needs autoincrement on integer fields
+     * See https://github.com/doctrine/dbal/pull/3141
+     * @param string $tableName
+     * @return bool
+     */
+    protected function tableRunsOnSqlite(string $tableName): bool
+    {
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($tableName);
+        return $connection->getDatabasePlatform() instanceof SqlitePlatform;
     }
 }

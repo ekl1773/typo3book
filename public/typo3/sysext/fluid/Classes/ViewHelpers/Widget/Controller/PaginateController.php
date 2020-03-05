@@ -94,8 +94,11 @@ class PaginateController extends AbstractWidgetController
             // modify query
             $itemsPerPage = (int)$this->configuration['itemsPerPage'];
             $offset = 0;
+            if ($this->objects instanceof QueryResultInterface) {
+                $offset = (int)$this->objects->getQuery()->getOffset();
+            }
             if ($this->currentPage > 1) {
-                $offset = ((int)($itemsPerPage * ($this->currentPage - 1)));
+                $offset = $offset + ((int)($itemsPerPage * ($this->currentPage - 1)));
             }
             $modifiedObjects = $this->prepareObjectsSlice($itemsPerPage, $offset);
         }
@@ -198,10 +201,10 @@ class PaginateController extends AbstractWidgetController
             return $modifiedObjects;
         }
         throw new \InvalidArgumentException(
-                'The view helper "' . static::class
+            'The ViewHelper "' . static::class
                 . '" accepts as argument "QueryResultInterface", "\SplObjectStorage", "ObjectStorage" or an array. '
                 . 'given: ' . get_class($this->objects),
-                1385547291
-            );
+            1385547291
+        );
     }
 }

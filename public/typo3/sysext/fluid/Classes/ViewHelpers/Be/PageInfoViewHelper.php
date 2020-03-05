@@ -22,23 +22,25 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * View helper which return page info icon as known from TYPO3 backend modules
- * Note: This view helper is experimental!
+ * ViewHelper which return page info icon as known from TYPO3 backend modules.
  *
- * = Examples =
+ * .. note::
+ *    This ViewHelper is experimental!
  *
- * <code>
- * <f:be.pageInfo />
- * </code>
- * <output>
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <f:be.pageInfo />
+ *
  * Page info icon with context menu
- * </output>
  */
 class PageInfoViewHelper extends AbstractBackendViewHelper
 {
 
     /**
-     * This view helper renders HTML, thus output must not be escaped
+     * This ViewHelper renders HTML, thus output must not be escaped
      *
      * @var bool
      */

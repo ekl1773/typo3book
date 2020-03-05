@@ -120,22 +120,6 @@ class LiveSearch
     }
 
     /**
-     * Retrieve the page record from given $id.
-     *
-     * @param int $id
-     * @return array
-     */
-    protected function findPageById($id)
-    {
-        $pageRecord = [];
-        $row = BackendUtility::getRecord(self::PAGE_JUMP_TABLE, $id);
-        if (is_array($row)) {
-            $pageRecord = $row;
-        }
-        return $pageRecord;
-    }
-
-    /**
      * Find records from all registered TCA table & column values.
      *
      * @param array $pageIdList Comma separated list of page IDs
@@ -238,8 +222,13 @@ class LiveSearch
         $result = $queryBuilder->execute();
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         while ($row = $result->fetch()) {
+            BackendUtility::workspaceOL($tableName, $row);
+            if (!is_array($row)) {
+                continue;
+            }
+            $onlineUid = $row['t3ver_oid'] ?: $row['uid'];
             $title = 'id=' . $row['uid'] . ', pid=' . $row['pid'];
-            $collect[] = [
+            $collect[$onlineUid] = [
                 'id' => $tableName . ':' . $row['uid'],
                 'pageId' => $tableName === 'pages' ? $row['uid'] : $row['pid'],
                 'typeLabel' =>  htmlspecialchars($this->getTitleOfCurrentRecordType($tableName)),
@@ -347,7 +336,7 @@ class LiveSearch
                     );
                 } elseif ($fieldType === 'text'
                     || $fieldType === 'flex'
-                    || ($fieldType === 'input' && (!$evalRules || !preg_match('/date|time|int/', $evalRules)))
+                    || ($fieldType === 'input' && (!$evalRules || !preg_match('/\b(?:date|time|int)\b/', $evalRules)))
                 ) {
                     // Otherwise and if the field makes sense to be searched, assemble a like condition
                     $constraints[] = $constraints[] = $queryBuilder->expr()->like(
@@ -398,7 +387,7 @@ class LiveSearch
                 // Assemble the search condition only if the field makes sense to be searched
                 if ($fieldType === 'text'
                     || $fieldType === 'flex'
-                    || ($fieldType === 'input' && (!$evalRules || !preg_match('/date|time|int/', $evalRules)))
+                    || ($fieldType === 'input' && (!$evalRules || !preg_match('/\b(?:date|time|int)\b/', $evalRules)))
                 ) {
                     if ($searchConstraint->count() !== 0) {
                         $constraints[] = $searchConstraint;

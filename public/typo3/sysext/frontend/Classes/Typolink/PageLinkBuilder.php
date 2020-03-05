@@ -20,6 +20,7 @@ use Psr\Http\Message\UriInterface;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\LanguageAspect;
+use TYPO3\CMS\Core\Context\LanguageAspectFactory;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Exception\Page\RootLineException;
@@ -30,6 +31,7 @@ use TYPO3\CMS\Core\Routing\SiteMatcher;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -180,14 +182,9 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             $conf['language'] = (int)$queryParameters['L'];
         }
 
-        // Now overlay the page in the target language, in order to have valid title attributes etc.
-        if (isset($conf['language']) && $conf['language'] > 0 && $conf['language'] !== 'current') {
-            $page = $tsfe->sys_page->getPageOverlay($page, (int)$conf['language']);
-        }
-
         // Check if the target page has a site configuration
         try {
-            $siteOfTargetPage = GeneralUtility::makeInstance(SiteMatcher::class)->matchByPageId((int)$page['uid']);
+            $siteOfTargetPage = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId((int)$page['uid'], null, $queryParameters['MP'] ?? '');
             $currentSite = $this->getCurrentSite();
         } catch (SiteNotFoundException $e) {
             // Usually happens in tests, as Pseudo Sites should be available everywhere.
@@ -196,7 +193,29 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
         }
 
         // Link to a page that has a site configuration
-        if ($siteOfTargetPage instanceof Site) {
+        if ($siteOfTargetPage !== null) {
+            $siteLanguageOfTargetPage = $this->getSiteLanguageOfTargetPage($siteOfTargetPage, (string)($conf['language'] ?? 'current'));
+            $languageAspect = LanguageAspectFactory::createFromSiteLanguage($siteLanguageOfTargetPage);
+
+            // Now overlay the page in the target language, in order to have valid title attributes etc.
+            if ($siteLanguageOfTargetPage->getLanguageId() > 0) {
+                $context = clone GeneralUtility::makeInstance(Context::class);
+                $context->setAspect('language', $languageAspect);
+                $pageRepository = GeneralUtility::makeInstance(PageRepository::class, $context);
+                $page = $pageRepository->getPageOverlay($page);
+            }
+            // Check if the target page can be access depending on l18n_cfg
+            if (!$tsfe->sys_page->isPageSuitableForLanguage($page, $languageAspect)) {
+                $languageField = $GLOBALS['TCA']['pages']['ctrl']['languageField'] ?? null;
+                $languageOfPageRecord = (int)($page[$languageField] ?? 0);
+                if ($languageOfPageRecord === 0 && GeneralUtility::hideIfDefaultLanguage($page['l18n_cfg'])) {
+                    throw new UnableToLinkException('Default language of page  "' . $linkDetails['typoLinkParameter'] . '" is hidden, so "' . $linkText . '" was not linked.', 1551621985, null, $linkText);
+                }
+                if ($languageOfPageRecord > 0 && !isset($page['_PAGES_OVERLAY']) && GeneralUtility::hideIfNotTranslated($page['l18n_cfg'])) {
+                    throw new UnableToLinkException('Fallback to default language of page "' . $linkDetails['typoLinkParameter'] . '" is disabled, so "' . $linkText . '" was not linked.', 1551621996, null, $linkText);
+                }
+            }
+
             // No need for any L parameter with Site handling
             unset($queryParameters['L']);
             if ($pageType) {
@@ -212,6 +231,8 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             } else {
                 // URL has a scheme, possibly because someone requested a full URL. So now lets check if the URL
                 // is on the same site pagetree. If this is the case, we'll treat it as internal
+                // @todo: currently this does not check if the target page is a mounted page in a different site,
+                // so it is treating this as an absolute URL, which is wrong
                 if ($currentSite instanceof Site && $currentSite->getRootPageId() === $siteOfTargetPage->getRootPageId()) {
                     $treatAsExternalLink = false;
                 }
@@ -227,21 +248,24 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 }
             }
         } else {
+            // Now overlay the page in the target language, in order to have valid title attributes etc.
+            if (isset($conf['language']) && $conf['language'] > 0 && $conf['language'] !== 'current') {
+                $page = $tsfe->sys_page->getPageOverlay($page, (int)$conf['language']);
+            }
+            $languageField = $GLOBALS['TCA']['pages']['ctrl']['languageField'] ?? null;
+            $languageOfPageRecord = (int)($page[$languageField] ?? 0);
+            if ($languageOfPageRecord === 0 && GeneralUtility::hideIfDefaultLanguage($page['l18n_cfg'])) {
+                throw new UnableToLinkException('Default language of page  "' . $linkDetails['typoLinkParameter'] . '" is hidden, so "' . $linkText . '" was not linked.', 1529527301, null, $linkText);
+            }
+            if ($languageOfPageRecord > 0 && !isset($page['_PAGES_OVERLAY']) && GeneralUtility::hideIfNotTranslated($page['l18n_cfg'])) {
+                throw new UnableToLinkException('Fallback to default language of page "' . $linkDetails['typoLinkParameter'] . '" is disabled, so "' . $linkText . '" was not linked.', 1529527488, null, $linkText);
+            }
+
             // If the typolink.language parameter was set, ensure that this is added to L query parameter
             if (!isset($queryParameters['L']) && MathUtility::canBeInterpretedAsInteger($conf['language'] ?? false)) {
                 $queryParameters['L'] = $conf['language'];
             }
             list($url, $target) = $this->generateUrlForPageWithoutSiteConfiguration($page, $queryParameters, $conf, $pageType, $sectionMark, $target, $MPvarAcc);
-        }
-
-        $languageField = $GLOBALS['TCA']['pages']['ctrl']['languageField'] ?? null;
-        $languageOfPageRecord = (int)($page[$languageField] ?? 0);
-
-        if ($languageOfPageRecord === 0 && GeneralUtility::hideIfDefaultLanguage($page['l18n_cfg'])) {
-            throw new UnableToLinkException('Default language of page  "' . $linkDetails['typoLinkParameter'] . '" is hidden, so "' . $linkText . '" was not linked.', 1529527301, null, $linkText);
-        }
-        if ($languageOfPageRecord > 0 && !isset($page['_PAGES_OVERLAY']) && GeneralUtility::hideIfNotTranslated($page['l18n_cfg'])) {
-            throw new UnableToLinkException('Fallback to default language of page "' . $linkDetails['typoLinkParameter'] . '" is disabled, so "' . $linkText . '" was not linked.', 1529527488, null, $linkText);
         }
 
         // If link is to an access restricted page which should be redirected, then find new URL:
@@ -264,7 +288,6 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             );
             $url = $this->contentObjectRenderer->getTypoLink_URL($thePage['uid'] . ($pageType ? ',' . $pageType : ''), $addParams, $target);
             $url = $this->forceAbsoluteUrl($url, $conf);
-            $this->contentObjectRenderer->lastTypoLinkLD['totalUrl'] = $url;
         }
 
         // Setting title if blank value to link
@@ -319,6 +342,37 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
     }
 
     /**
+     * Fetches the requested language of a site that the link should be built for
+     *
+     * @param Site $siteOfTargetPage
+     * @param string $targetLanguageId "current" or the languageId
+     * @return SiteLanguage
+     * @throws UnableToLinkException
+     */
+    protected function getSiteLanguageOfTargetPage(Site $siteOfTargetPage, string $targetLanguageId): SiteLanguage
+    {
+        $currentSite = $this->getCurrentSite();
+        $currentSiteLanguage = $this->getCurrentSiteLanguage();
+        // Happens when currently on a pseudo-site configuration
+        // We assume to use the default language then
+        if ($currentSite && !($currentSiteLanguage instanceof SiteLanguage)) {
+            $currentSiteLanguage = $currentSite->getDefaultLanguage();
+        }
+
+        if ($targetLanguageId === 'current') {
+            $targetLanguageId = $currentSiteLanguage ? $currentSiteLanguage->getLanguageId() : 0;
+        } else {
+            $targetLanguageId = (int)$targetLanguageId;
+        }
+        try {
+            $siteLanguageOfTargetPage = $siteOfTargetPage->getLanguageById($targetLanguageId);
+        } catch (\InvalidArgumentException $e) {
+            throw new UnableToLinkException('The target page does not have a language with ID ' . $targetLanguageId . ' configured in its site configuration.', 1535477406);
+        }
+        return $siteLanguageOfTargetPage;
+    }
+
+    /**
      * Create a UriInterface object when linking to a page with a site configuration
      *
      * @param array $page
@@ -339,17 +393,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             $currentSiteLanguage = $currentSite->getDefaultLanguage();
         }
 
-        $targetLanguageId = $conf['language'] ?? 'current';
-        if ($targetLanguageId === 'current') {
-            $targetLanguageId = $currentSiteLanguage ? $currentSiteLanguage->getLanguageId() : 0;
-        } else {
-            $targetLanguageId = (int)$targetLanguageId;
-        }
-        try {
-            $siteLanguageOfTargetPage = $siteOfTargetPage->getLanguageById($targetLanguageId);
-        } catch (\InvalidArgumentException $e) {
-            throw new UnableToLinkException('The target page does not have a language with ID ' . $targetLanguageId . ' configured in its site configuration.', 1535477406);
-        }
+        $siteLanguageOfTargetPage = $this->getSiteLanguageOfTargetPage($siteOfTargetPage, (string)($conf['language'] ?? 'current'));
 
         // By default, it is assumed to ab an internal link or current domain's linking scheme should be used
         // Use the config option to override this.
@@ -365,6 +409,11 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
 
         $targetPageId = (int)($page['l10n_parent'] > 0 ? $page['l10n_parent'] : $page['uid']);
         $queryParameters['_language'] = $siteLanguageOfTargetPage;
+
+        if ($conf['no_cache']) {
+            $queryParameters['no_cache'] = 1;
+        }
+
         try {
             $uri = $siteOfTargetPage->getRouter()->generateUri(
                 $targetPageId,
@@ -605,11 +654,11 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
             if ($p === 'root') {
                 $rootPage = $this->getTypoScriptFrontendController()->tmpl->rootLine[0];
                 $p = $rootPage['uid'];
-                if ($p['_MOUNT_OL'] && $p['_MP_PARAM']) {
-                    $initMParray[] = $p['_MP_PARAM'];
+                if ($rootPage['_MOUNT_OL'] && $rootPage['_MP_PARAM']) {
+                    $initMParray[] = $rootPage['_MP_PARAM'];
                 }
             }
-            $this->populateMountPointMapForPageRecursively($mountPointMap, $p, $initMParray);
+            $this->populateMountPointMapForPageRecursively($mountPointMap, (int)$p, $initMParray);
         }
         $runtimeCache->set('pageLinkBuilderMountPointMap', $mountPointMap);
         return $mountPointMap;
@@ -655,7 +704,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
             $queryResult = $queryBuilder
-                ->select('uid', 'pid', 'doktype', 'mount_pid', 'mount_pid_ol')
+                ->select('uid', 'pid', 'doktype', 'mount_pid', 'mount_pid_ol', 't3ver_state')
                 ->from('pages')
                 ->where(
                     $queryBuilder->expr()->eq(
@@ -673,13 +722,13 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                 )->execute();
             while ($row = $queryResult->fetch()) {
                 // Find mount point if any:
-                $next_id = $row['uid'];
+                $next_id = (int)$row['uid'];
                 $next_MP_array = $MP_array;
                 $mount_info = $this->getTypoScriptFrontendController()->sys_page->getMountPointInfo($next_id, $row);
                 // Overlay mode:
                 if (is_array($mount_info) && $mount_info['overlay']) {
                     $next_MP_array[] = $mount_info['MPvar'];
-                    $next_id = $mount_info['mount_pid'];
+                    $next_id = (int)$mount_info['mount_pid'];
                 }
                 if (!isset($mountPointMap[$next_id])) {
                     // Set mapping information for this level:
@@ -687,7 +736,7 @@ class PageLinkBuilder extends AbstractTypolinkBuilder
                     // Normal mode:
                     if (is_array($mount_info) && !$mount_info['overlay']) {
                         $next_MP_array[] = $mount_info['MPvar'];
-                        $next_id = $mount_info['mount_pid'];
+                        $next_id = (int)$mount_info['mount_pid'];
                     }
                     // Register recursive call
                     // (have to do it this way since ALL of the current level should be registered BEFORE the sublevel at any time)

@@ -578,6 +578,11 @@ class RteHtmlParser extends HtmlParser implements LoggerAwareInterface
         foreach ($blockSplit as $k => $v) {
             if ($k % 2) {
                 list($tagAttributes) = $this->get_tag_attributes($this->getFirstTag($v), true);
+
+                // Anchors would not have an href attribute
+                if (!isset($tagAttributes['href'])) {
+                    continue;
+                }
                 $linkService = GeneralUtility::makeInstance(LinkService::class);
                 $linkInformation = $linkService->resolve($tagAttributes['href'] ?? '');
 
@@ -1218,7 +1223,7 @@ class RteHtmlParser extends HtmlParser implements LoggerAwareInterface
                 list($attribArray) = $this->get_tag_attributes($this->getFirstTag($v), true);
                 // Checking if there is a scheme, and if not, prepend the current url.
                 // ONLY do this if href has content - the <a> tag COULD be an anchor and if so, it should be preserved...
-                if ($attribArray['href'] !== '') {
+                if (($attribArray['href'] ?? '') !== '') {
                     $uP = parse_url(strtolower($attribArray['href']));
                     if (!$uP['scheme']) {
                         $attribArray['href'] = GeneralUtility::getIndpEnv('TYPO3_SITE_URL') . $attribArray['href'];

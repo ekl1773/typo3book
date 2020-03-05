@@ -19,35 +19,38 @@ use TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * View helper which returns CSH (context sensitive help) button with icon
- * Note: The CSH button will only work, if the current BE user has the "Context Sensitive Help mode"
- * set to something else than "Display no help information" in the Users settings
- * Note: This view helper is experimental!
+ * ViewHelper which returns CSH (context sensitive help) button with icon.
  *
- * = Examples =
+ * .. note::
+ *    The CSH button will only work, if the current BE user has the "Context
+ *    Sensitive Help mode" set to something else than "Display no help
+ *    information" in the Users settings.
  *
- * <code title="Default">
- * <f:be.buttons.csh />
- * </code>
- * <output>
+ * .. note::
+ *    This ViewHelper is experimental!
+ *
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <f:be.buttons.csh />
+ *
  * CSH button as known from the TYPO3 backend.
- * </output>
  *
- * <code title="Full configuration">
- * <f:be.buttons.csh table="xMOD_csh_corebe" field="someCshKey" />
- * </code>
- * <output>
+ * Full configuration::
+ *
+ *    <f:be.buttons.csh table="xMOD_csh_corebe" field="someCshKey" />
+ *
  * CSH button as known from the TYPO3 backend with some custom settings.
- * </output>
  *
- * <code title="Full configuration with content">
- * <f:be.buttons.csh table="xMOD_csh_corebe" field="someCshKey">
- *   some text to link
- * </f:be.buttons.csh>
- * </code>
- * <output>
- * A link with text "some text to link" to link the help
- * </output>
+ * Full configuration with content::
+ *
+ *    <f:be.buttons.csh table="xMOD_csh_corebe" field="someCshKey">
+ *       some text to link
+ *    </f:be.buttons.csh>
+ *
+ * A link with text "some text to link" to link the help.
  */
 class CshViewHelper extends AbstractBackendViewHelper
 {

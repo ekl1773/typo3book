@@ -3,6 +3,19 @@ declare(strict_types = 1);
 
 namespace TYPO3\CMS\Backend\ViewHelpers\Uri;
 
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
@@ -14,16 +27,16 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * pass the uid and table to FormEngine.
  *
  * The uid must be given as a positive integer.
- * For new records, use the newRecordViewHelper
+ * For new records, use the :ref:`<be:uri.newRecord> <typo3-backend-uri-newrecord>`.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="URI to the record-edit action passed to FormEngine">
- * <be:uri.editRecord uid="42" table="a_table" returnUrl="foo/bar" />
- * </code>
- * <output>
- * /typo3/index.php?route=/record/edit&edit[a_table][42]=edit&returnUrl=foo/bar
- * </output>
+ * URI to the record-edit action passed to FormEngine::
+ *
+ *    <be:uri.editRecord uid="42" table="a_table" returnUrl="foo/bar" />
+ *
+ * ``/typo3/index.php?route=/record/edit&edit[a_table][42]=edit&returnUrl=foo/bar``
  */
 class EditRecordViewHelper extends AbstractViewHelper
 {

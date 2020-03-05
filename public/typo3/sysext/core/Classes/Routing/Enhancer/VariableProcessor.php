@@ -23,7 +23,7 @@ class VariableProcessor
 {
     protected const LEVEL_DELIMITER = '__';
     protected const ARGUMENT_SEPARATOR = '/';
-    protected const VARIABLE_PATTERN = '#\{(?P<name>[^}]+)\}#';
+    protected const VARIABLE_PATTERN = '#\{(?P<modifier>!)?(?P<name>[^}]+)\}#';
 
     /**
      * @var array
@@ -41,16 +41,17 @@ class VariableProcessor
      */
     protected function addHash(string $value): string
     {
-        if (strlen($value) < 32 && !preg_match('#[^\w]#', $value)) {
+        if (strlen($value) < 31 && !preg_match('#[^\w]#', $value)) {
             return $value;
         }
-        $hash = md5($value);
+        // removing one bit, e.g. for enforced route prefix `{!value}`
+        $hash = substr(md5($value), 0, -1);
         // Symfony Route Compiler requires first literal to be non-integer
-        if ($hash{0} === (string)(int)$hash{0}) {
-            $hash{0} = str_replace(
+        if ($hash[0] === (string)(int)$hash[0]) {
+            $hash[0] = str_replace(
                 range('0', '9'),
                 range('o', 'x'),
-                $hash{0}
+                $hash[0]
             );
         }
         $this->hashes[$hash] = $value;
@@ -64,7 +65,7 @@ class VariableProcessor
      */
     protected function resolveHash(string $hash): string
     {
-        if (strlen($hash) < 32) {
+        if (strlen($hash) < 31) {
             return $hash;
         }
         if (!isset($this->hashes[$hash])) {
@@ -118,14 +119,13 @@ class VariableProcessor
             return $routePath;
         }
 
+        $replace = [];
         $search = array_values($matches[0]);
-        $replace = array_map(
-            function (string $name) {
-                return '{' . $name . '}';
-            },
-            $this->deflateValues($matches['name'], $namespace, $arguments)
-        );
-
+        $deflatedNames = $this->deflateValues($matches['name'], $namespace, $arguments);
+        foreach ($deflatedNames as $index => $deflatedName) {
+            $modifier = $matches['modifier'][$index] ?? '';
+            $replace[] = '{' . $modifier . $deflatedName . '}';
+        }
         return str_replace($search, $replace, $routePath);
     }
 
@@ -141,14 +141,13 @@ class VariableProcessor
             return $routePath;
         }
 
+        $replace = [];
         $search = array_values($matches[0]);
-        $replace = array_map(
-            function (string $name) {
-                return '{' . $name . '}';
-            },
-            $this->inflateValues($matches['name'], $namespace, $arguments)
-        );
-
+        $inflatedNames = $this->inflateValues($matches['name'], $namespace, $arguments);
+        foreach ($inflatedNames as $index => $inflatedName) {
+            $modifier = $matches['modifier'][$index] ?? '';
+            $replace[] = '{' . $modifier . $inflatedName . '}';
+        }
         return str_replace($search, $replace, $routePath);
     }
 
@@ -281,6 +280,7 @@ class VariableProcessor
             return $values;
         }
         $namespacePrefix = $namespace ? $namespace . static::LEVEL_DELIMITER : '';
+        $arguments = array_map('strval', $arguments);
         return array_map(
             function (string $value) use ($arguments, $namespacePrefix, $hash) {
                 $value = $arguments[$value] ?? $value;
@@ -309,6 +309,7 @@ class VariableProcessor
         if (empty($values) || empty($arguments) && empty($namespace)) {
             return $values;
         }
+        $arguments = array_map('strval', $arguments);
         $namespacePrefix = $namespace ? $namespace . static::LEVEL_DELIMITER : '';
         return array_map(
             function (string $value) use ($arguments, $namespacePrefix, $hash) {
@@ -319,7 +320,7 @@ class VariableProcessor
                     $value = substr($value, strlen($namespacePrefix));
                 }
                 $value = $this->resolveNestedValue($value);
-                $index = array_search($value, $arguments);
+                $index = array_search($value, $arguments, true);
                 return $index !== false ? $index : $value;
             },
             $values
@@ -343,7 +344,7 @@ class VariableProcessor
         $result = [];
         foreach ($array as $key => $value) {
             if (is_array($value)) {
-                $result = array_merge(
+                $result = array_replace(
                     $result,
                     $this->deflateArray(
                         $value,
@@ -370,8 +371,8 @@ class VariableProcessor
     {
         $result = [];
         foreach ($array as $key => $value) {
-            $inflatedKey = $this->resolveHash($key);
-            // inflate nested values `namespace__any__neste` -> `namespace__any/nested`
+            $inflatedKey = $this->resolveHash((string)$key);
+            // inflate nested values `namespace__any__nested` -> `namespace__any/nested`
             $inflatedKey = $this->inflateNestedValue($inflatedKey, $namespace, $arguments);
             $steps = explode(static::LEVEL_DELIMITER, $inflatedKey);
             $pointer = &$result;
@@ -396,9 +397,10 @@ class VariableProcessor
         if (!empty($namespace) && strpos($value, $namespacePrefix) !== 0) {
             return $value;
         }
+        $arguments = array_map('strval', $arguments);
         $possibleNestedValueKey = substr($value, strlen($namespacePrefix));
         $possibleNestedValue = $this->nestedValues[$possibleNestedValueKey] ?? null;
-        if (!$possibleNestedValue || !in_array($possibleNestedValue, $arguments, true)) {
+        if ($possibleNestedValue === null || !in_array($possibleNestedValue, $arguments, true)) {
             return $value;
         }
         return $namespacePrefix . $possibleNestedValue;

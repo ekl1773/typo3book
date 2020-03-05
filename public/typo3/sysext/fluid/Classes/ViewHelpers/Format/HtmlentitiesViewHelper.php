@@ -18,24 +18,33 @@ use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
- * Applies htmlentities() escaping to a value
- * @see http://www.php.net/manual/function.htmlentities.php
+ * Applies :php:`htmlentities()` escaping to a value.
+ * See https://www.php.net/manual/function.htmlentities.php.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="default notation">
- * <f:format.htmlentities>{text}</f:format.htmlentities>
- * </code>
- * <output>
- * Text with & " ' < > * replaced by HTML entities (htmlentities applied).
- * </output>
+ * Default notation
+ * ----------------
  *
- * <code title="inline notation">
- * {text -> f:format.htmlentities(encoding: 'ISO-8859-1')}
- * </code>
- * <output>
- * Text with & " ' < > * replaced by HTML entities (htmlentities applied).
- * </output>
+ * ::
+ *
+ *    <f:format.htmlentities>{text}</f:format.htmlentities>
+ *
+ * Text containing the following signs ``&`` ``"`` ``'`` ``<`` ``>`` will be processed by :php:`htmlentities()`.
+ * These will result in: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``.
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {text -> f:format.htmlentities(encoding: 'ISO-8859-1')}
+ *
+ * Text containing the following signs ``&`` ``"`` ``'`` ``<`` ``>`` will be processed by :php:`htmlentities()`.
+ * These will result in: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``.
+ *
+ * But encoded as ISO-8859-1.
  */
 class HtmlentitiesViewHelper extends AbstractEncodingViewHelper
 {
@@ -69,7 +78,7 @@ class HtmlentitiesViewHelper extends AbstractEncodingViewHelper
     /**
      * Escapes special characters with their escaped counterparts as needed using PHPs htmlentities() function.
      *
-     * @see http://www.php.net/manual/function.htmlentities.php
+     * @see https://www.php.net/manual/function.htmlentities.php
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext

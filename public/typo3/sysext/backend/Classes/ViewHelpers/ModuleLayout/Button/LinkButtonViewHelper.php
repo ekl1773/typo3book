@@ -20,18 +20,21 @@ use TYPO3\CMS\Backend\Template\Components\Buttons\ButtonInterface;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * A view helper for adding a link button to the doc header area.
- * It must be a child of <be:moduleLayout>
- * = Examples =
- * <code>
- * <be:moduleLayout>
- *      <be:moduleLayout.button.linkButton
- *          icon="actions-add"
- *          title="Add record')}"
- *          link="{be:uri.newRecord(table: 'tx_my_table')}"
- *      />
- * </be:moduleLayout>
- * </code>
+ * A ViewHelper for adding a link button to the doc header area.
+ * It must be a child of :ref:`<be:moduleLayout> <typo3-backend-modulelayout>`.
+ *
+ * Examples
+ * --------
+ *
+ * Default::
+ *
+ *    <be:moduleLayout>
+ *        <be:moduleLayout.button.linkButton
+ *            icon="actions-add"
+ *            title="Add record')}"
+ *            link="{be:uri.newRecord(table: 'tx_my_table')}"
+ *        />
+ *    </be:moduleLayout>
  */
 class LinkButtonViewHelper extends AbstractButtonViewHelper
 {

@@ -541,14 +541,6 @@ locale_all = da_DK]]></description>
 			<default><![CDATA[
 ]]></default>
 		</property>
-		<property name="message_page_is_being_generated" type="string">
-			<description><![CDATA[Alternative HTML message that appears if a page is being generated.
-Normally when a page is being generated a temporary copy is stored in the cache-table with an expire-time of 30 seconds.
-
-It is possible to use some keywords that are replaced with the corresponding values. Possible keywords are: ###TITLE###, ###REQUEST_URI###]]></description>
-			<default><![CDATA[
-]]></default>
-		</property>
 		<property name="message_preview" type="string">
 			<description><![CDATA[Alternative message in HTML that appears when the preview function is active!]]></description>
 			<default><![CDATA[
@@ -4815,7 +4807,7 @@ In this example the MYLINK subpart will be substituted by the wrap which is the 
 		</property>
 	</type>
 	<type id="TEXT" extends="stdWrap">
-		<property name="value" type="value">
+		<property name="value" type="stdWrap">
 			<description><![CDATA[text, wrap with stdWrap properties]]></description>
 			<default><![CDATA[
 ]]></default>
@@ -5523,11 +5515,6 @@ instead.]]></description>
 			<default><![CDATA[
 ]]></default>
 		</property>
-		<property name="alternativeTempPath" type="string">
-			<description><![CDATA[Enter an alternative path to use for temp images.]]></description>
-			<default><![CDATA[
-]]></default>
-		</property>
 		<property name="bodyTag" type="string">
 			<description><![CDATA[Body tag of the new window]]></description>
 			<default><![CDATA[
@@ -5607,11 +5594,6 @@ If you add "m" to either the width or height, the image will be held in proporti
 		</property>
 	</type>
 	<type id="imgResource">
-		<property name="alternativeTempPath" type="string">
-			<description><![CDATA[Enter an alternative path to use for temp images.]]></description>
-			<default><![CDATA[
-]]></default>
-		</property>
 		<property name="ext" type="stdWrap">
 			<description><![CDATA[
 ]]></description>

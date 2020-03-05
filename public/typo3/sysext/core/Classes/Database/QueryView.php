@@ -196,7 +196,7 @@ class QueryView
         $storeArray = [
             '0' => '[New]'
         ];
-        $savedStoreArray = unserialize($this->settings['storeArray']);
+        $savedStoreArray = unserialize($this->settings['storeArray'], ['allowed_classes' => false]);
         if (is_array($savedStoreArray)) {
             $storeArray = array_merge($storeArray, $savedStoreArray);
         }
@@ -255,7 +255,7 @@ class QueryView
             }
             // Show query
             if ($saveArr['queryTable']) {
-                /** @var \TYPO3\CMS\Core\Database\QueryGenerator */
+                /** @var $queryGenerator \TYPO3\CMS\Core\Database\QueryGenerator */
                 $queryGenerator = GeneralUtility::makeInstance(QueryGenerator::class);
                 $queryGenerator->init('queryConfig', $saveArr['queryTable']);
                 $queryGenerator->makeSelectorTable($saveArr);
@@ -317,7 +317,7 @@ class QueryView
     public function procesStoreControl()
     {
         $storeArray = $this->initStoreArray();
-        $storeQueryConfigs = unserialize($this->settings['storeQueryConfigs']);
+        $storeQueryConfigs = unserialize($this->settings['storeQueryConfigs'], ['allowed_classes' => false]);
         $storeControl = GeneralUtility::_GP('storeControl');
         $storeIndex = (int)$storeControl['STORE'];
         $saveStoreArray = 0;
@@ -335,7 +335,7 @@ class QueryView
                 } elseif ($storeIndex < 0 && ExtensionManagementUtility::isLoaded('sys_action')) {
                     $actionRecord = BackendUtility::getRecord('sys_action', abs($storeIndex));
                     if (is_array($actionRecord)) {
-                        $dA = unserialize($actionRecord['t2_data']);
+                        $dA = unserialize($actionRecord['t2_data'], ['allowed_classes' => false]);
                         $dbSC = [];
                         if (is_array($dA['qC'])) {
                             $dbSC[0] = $dA['qC'];
@@ -623,11 +623,11 @@ class QueryView
                 $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
                 $queryBuilder->count('*')->from($table);
                 $likes = [];
-                $excapedLikeString = '%' . $queryBuilder->escapeLikeWildcards($swords) . '%';
+                $escapedLikeString = '%' . $queryBuilder->escapeLikeWildcards($swords) . '%';
                 foreach ($fields as $field) {
                     $likes[] = $queryBuilder->expr()->like(
                         $field,
-                        $queryBuilder->createNamedParameter($excapedLikeString, \PDO::PARAM_STR)
+                        $queryBuilder->createNamedParameter($escapedLikeString, \PDO::PARAM_STR)
                     );
                 }
                 $count = $queryBuilder->orWhere(...$likes)->execute()->fetchColumn(0);
@@ -642,7 +642,7 @@ class QueryView
                     foreach ($fields as $field) {
                         $likes[] = $queryBuilder->expr()->like(
                             $field,
-                            $queryBuilder->createNamedParameter($excapedLikeString, \PDO::PARAM_STR)
+                            $queryBuilder->createNamedParameter($escapedLikeString, \PDO::PARAM_STR)
                         );
                     }
                     $statement = $queryBuilder->orWhere(...$likes)->execute();

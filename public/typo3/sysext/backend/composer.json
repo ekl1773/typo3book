@@ -13,14 +13,16 @@
 		"sort-packages": true
 	},
 	"require": {
-		"typo3/cms-core": "9.5.4",
-		"typo3/cms-recordlist": "9.5.4"
+		"typo3/cms-core": "9.5.14",
+		"typo3/cms-recordlist": "9.5.14"
+	},
+	"suggest": {
+		"typo3/cms-install": "To generate url to install tool in environment toolbar"
 	},
 	"conflict": {
 		"typo3/cms": "*"
 	},
 	"replace": {
-		"backend": "*",
 		"typo3/cms-context-help": "*",
 		"typo3/cms-cshmanual": "*",
 		"typo3/cms-func-wizards": "*",

@@ -85,6 +85,7 @@ class MaintenanceController extends AbstractController
      */
     public function clearTypo3tempFilesStatsAction(ServerRequestInterface $request): ResponseInterface
     {
+        $this->loadExtLocalconfDatabaseAndExtTables();
         $view = $this->initializeStandaloneView($request, 'Maintenance/ClearTypo3tempFiles.html');
         $formProtection = FormProtectionFactory::get(InstallToolFormProtection::class);
         $view->assignMultiple([
@@ -107,6 +108,7 @@ class MaintenanceController extends AbstractController
      */
     public function clearTypo3tempFilesAction(ServerRequestInterface $request): ResponseInterface
     {
+        $this->loadExtLocalconfDatabaseAndExtTables();
         $messageQueue = new FlashMessageQueue('install');
         $typo3tempFileService = new Typo3tempFileService();
         $folder = $request->getParsedBody()['install']['folder'];
@@ -757,8 +759,8 @@ class MaintenanceController extends AbstractController
             ->execute();
         $messageQueue = new FlashMessageQueue('install');
         $messageQueue->enqueue(new FlashMessage(
-            'All backend users preferences has been reseted',
-            'Reset all backend users preferences'
+            'Preferences of all backend users have been reset',
+            'Reset preferences of all backend users'
         ));
         return new JsonResponse([
             'success' => true,

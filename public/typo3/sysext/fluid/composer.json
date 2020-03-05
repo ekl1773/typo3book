@@ -13,15 +13,13 @@
 		"sort-packages": true
 	},
 	"require": {
-		"typo3/cms-core": "9.5.4",
-		"typo3/cms-extbase": "9.5.4",
-		"typo3fluid/fluid": "^2.5.2"
+		"typo3/cms-core": "9.5.14",
+		"typo3/cms-extbase": "9.5.14",
+		"typo3fluid/fluid": "^2.6.8"
 	},
 	"conflict": {
-		"typo3/cms": "*"
-	},
-	"replace": {
-		"fluid": "*"
+		"typo3/cms": "*",
+		"typo3fluid/fluid": "2.6.4 || 2.6.5"
 	},
 	"extra": {
 		"typo3/cms": {

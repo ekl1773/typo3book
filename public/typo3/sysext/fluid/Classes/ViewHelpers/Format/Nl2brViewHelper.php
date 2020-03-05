@@ -19,24 +19,29 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
- * Wrapper for PHPs nl2br function.
- * @see http://www.php.net/manual/en/function.nl2br.php
+ * Wrapper for PHPs :php:`nl2br` function.
+ * See https://www.php.net/manual/function.nl2br.php.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Example">
- * <f:format.nl2br>{text_with_linebreaks}</f:format.nl2br>
- * </code>
- * <output>
- * text with line breaks replaced by <br />
- * </output>
+ * Default
+ * -------
  *
- * <code title="Inline notation">
- * {text_with_linebreaks -> f:format.nl2br()}
- * </code>
- * <output>
- * text with line breaks replaced by <br />
- * </output>
+ * ::
+ *
+ *    <f:format.nl2br>{text_with_linebreaks}</f:format.nl2br>
+ *
+ * Text with line breaks replaced by ``<br />``
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {text_with_linebreaks -> f:format.nl2br()}
+ *
+ * Text with line breaks replaced by ``<br />``
  */
 class Nl2brViewHelper extends AbstractViewHelper
 {

@@ -113,7 +113,7 @@ class SlugHelper
         $slug = GeneralUtility::makeInstance(CharsetConverter::class)->specCharsToASCII('utf-8', $slug);
 
         // Get rid of all invalid characters, but allow slashes
-        $slug = preg_replace('/[^\p{L}0-9\/' . preg_quote($fallbackCharacter) . ']/u', '', $slug);
+        $slug = preg_replace('/[^\p{L}\p{M}0-9\/' . preg_quote($fallbackCharacter) . ']/u', '', $slug);
 
         // Convert multiple fallback characters to a single one
         if ($fallbackCharacter !== '') {
@@ -122,16 +122,12 @@ class SlugHelper
 
         // Ensure slug is lower cased after all replacement was done
         $slug = mb_strtolower($slug, 'utf-8');
-        // keep slashes: re-convert them after rawurlencode did everything
-        $slug = rawurlencode($slug);
-        // @todo: add a test and see if we need this
-        $slug = str_replace('%2F', '/', $slug);
         // Extract slug, thus it does not have wrapping fallback and slash characters
         $extractedSlug = $this->extract($slug);
         // Remove trailing and beginning slashes, except if the trailing slash was added, then we'll re-add it
         $appendTrailingSlash = $extractedSlug !== '' && substr($slug, -1) === '/';
         $slug = $extractedSlug . ($appendTrailingSlash ? '/' : '');
-        if ($this->prependSlashInSlug && ($slug{0} ?? '') !== '/') {
+        if ($this->prependSlashInSlug && ($slug[0] ?? '') !== '/') {
             $slug = '/' . $slug;
         }
         return $slug;
@@ -155,7 +151,7 @@ class SlugHelper
      * Used when no slug exists for a record
      *
      * @param array $recordData
-     * @param int $pid
+     * @param int $pid The uid of the page to generate the slug for
      * @return string
      */
     public function generate(array $recordData, int $pid): string
@@ -186,11 +182,21 @@ class SlugHelper
         $slugParts = [];
 
         $replaceConfiguration = $this->configuration['generatorOptions']['replacements'] ?? [];
-        foreach ($this->configuration['generatorOptions']['fields'] ?? [] as $fieldName) {
-            if (!empty($recordData[$fieldName])) {
-                $pieceOfSlug = $recordData[$fieldName];
-                $pieceOfSlug = str_replace(array_keys($replaceConfiguration), array_values($replaceConfiguration), $pieceOfSlug);
-                $slugParts[] = $pieceOfSlug;
+        foreach ($this->configuration['generatorOptions']['fields'] ?? [] as $fieldNameParts) {
+            if (is_string($fieldNameParts)) {
+                $fieldNameParts = GeneralUtility::trimExplode(',', $fieldNameParts);
+            }
+            foreach ($fieldNameParts as $fieldName) {
+                if (!empty($recordData[$fieldName])) {
+                    $pieceOfSlug = $recordData[$fieldName];
+                    $pieceOfSlug = str_replace(
+                        array_keys($replaceConfiguration),
+                        array_values($replaceConfiguration),
+                        $pieceOfSlug
+                    );
+                    $slugParts[] = $pieceOfSlug;
+                    break;
+                }
             }
         }
         $slug = implode($fieldSeparator, $slugParts);
@@ -199,13 +205,27 @@ class SlugHelper
         if ($slug === '' || $slug === '/') {
             $slug = 'default-' . GeneralUtility::shortMD5(json_encode($recordData));
         }
-        if ($this->prependSlashInSlug && ($slug{0} ?? '') !== '/') {
+        if ($this->prependSlashInSlug && ($slug[0] ?? '') !== '/') {
             $slug = '/' . $slug;
         }
         if (!empty($prefix)) {
             $slug = $prefix . $slug;
         }
 
+        // Hook for alternative ways of filling/modifying the slug data
+        foreach ($this->configuration['generatorOptions']['postModifiers'] ?? [] as $funcName) {
+            $hookParameters = [
+                'slug' => $slug,
+                'workspaceId' => $this->workspaceId,
+                'configuration' => $this->configuration,
+                'record' => $recordData,
+                'pid' => $pid,
+                'prefix' => $prefix,
+                'tableName' => $this->tableName,
+                'fieldName' => $this->fieldName,
+            ];
+            $slug = GeneralUtility::callUserFunction($funcName, $hookParameters, $this);
+        }
         return $this->sanitize($slug);
     }
 
@@ -250,9 +270,15 @@ class SlugHelper
      */
     public function isUniqueInSite(string $slug, RecordState $state): bool
     {
-        $pageId = (int)$state->resolveNodeAggregateIdentifier();
+        $pageId = $state->resolveNodeAggregateIdentifier();
         $recordId = $state->getSubject()->getIdentifier();
         $languageId = $state->getContext()->getLanguageId();
+
+        if (!MathUtility::canBeInterpretedAsInteger($pageId)) {
+            // If this is a new page, we use the parent page to resolve the site
+            $pageId = $state->getNode()->getIdentifier();
+        }
+        $pageId = (int)$pageId;
 
         if ($pageId < 0) {
             $pageId = $this->resolveLivePageId($recordId);
@@ -275,6 +301,7 @@ class SlugHelper
         // The installation contains at least ONE other record with the same slug
         // Now find out if it is the same root page ID
         $siteMatcher = GeneralUtility::makeInstance(SiteMatcher::class);
+        $siteMatcher->refresh();
         $siteOfCurrentRecord = $siteMatcher->matchByPageId($pageId);
         foreach ($records as $record) {
             try {
@@ -311,9 +338,9 @@ class SlugHelper
         $newValue = $slug;
         $counter = 0;
         while (!$this->isUniqueInSite(
-                $newValue,
-                $state
-            ) && $counter++ < 100
+            $newValue,
+            $state
+        ) && $counter++ < 100
         ) {
             $newValue = $this->sanitize($rawValue . '-' . $counter);
         }
@@ -337,9 +364,9 @@ class SlugHelper
         $newValue = $slug;
         $counter = 0;
         while (!$this->isUniqueInPid(
-                $newValue,
-                $state
-            ) && $counter++ < 100
+            $newValue,
+            $state
+        ) && $counter++ < 100
         ) {
             $newValue = $this->sanitize($rawValue . '-' . $counter);
         }
@@ -564,9 +591,24 @@ class SlugHelper
             // do not use spacers (199), recyclers and folders and everything else
         } while (!empty($rootLine) && (int)$parentPageRecord['doktype'] >= 199);
         if ($languageId > 0) {
-            $localizedParentPageRecord = BackendUtility::getRecordLocalization('pages', $parentPageRecord['uid'], $languageId);
-            if (!empty($localizedParentPageRecord)) {
-                $parentPageRecord = reset($localizedParentPageRecord);
+            $languageIds = [$languageId];
+            $siteMatcher = GeneralUtility::makeInstance(SiteMatcher::class);
+            $siteMatcher->refresh();
+
+            try {
+                $site = $siteMatcher->matchByPageId($pid);
+                $siteLanguage = $site->getLanguageById($languageId);
+                $languageIds = array_merge($languageIds, $siteLanguage->getFallbackLanguageIds());
+            } catch (SiteNotFoundException | \InvalidArgumentException $e) {
+                // no site or requested language available - move on
+            }
+
+            foreach ($languageIds as $languageId) {
+                $localizedParentPageRecord = BackendUtility::getRecordLocalization('pages', $parentPageRecord['uid'], $languageId);
+                if (!empty($localizedParentPageRecord)) {
+                    $parentPageRecord = reset($localizedParentPageRecord);
+                    break;
+                }
             }
         }
         return $parentPageRecord;

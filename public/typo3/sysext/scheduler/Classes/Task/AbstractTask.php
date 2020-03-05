@@ -96,31 +96,9 @@ abstract class AbstractTask implements LoggerAwareInterface
      */
     public function __construct()
     {
-        $this->setScheduler();
+        // Using makeInstance instead of setScheduler() here as the logger is injected due to LoggerAwareTrait
+        $this->scheduler = GeneralUtility::makeInstance(\TYPO3\CMS\Scheduler\Scheduler::class);
         $this->execution = GeneralUtility::makeInstance(Execution::class);
-    }
-
-    /**
-     * Restore logger after save to database
-     */
-    public function __wakeup()
-    {
-        if ($this->logger === null) {
-            $this->logger = GeneralUtility::makeInstance(LogManager::class)->getLogger(__CLASS__);
-        }
-    }
-
-    /**
-     * Prevent several objects from being serialized.
-     * Logger does not need to be saved to task
-     * @return array
-     */
-    public function __sleep()
-    {
-        $vars = get_object_vars($this);
-        unset($vars['logger']);
-
-        return array_keys($vars);
     }
 
     /**
@@ -303,20 +281,24 @@ abstract class AbstractTask implements LoggerAwareInterface
 
     /**
      * Sets the internal reference to the singleton instance of the Scheduler
+     * and the logger instance in case it was unserialized
      */
     public function setScheduler()
     {
         $this->scheduler = GeneralUtility::makeInstance(\TYPO3\CMS\Scheduler\Scheduler::class);
+        $this->logger = GeneralUtility::makeInstance(LogManager::class)->getLogger(__CLASS__);
     }
 
     /**
      * Unsets the internal reference to the singleton instance of the Scheduler
+     * and the logger instance.
      * This is done before a task is serialized, so that the scheduler instance
-     * is not saved to the database too
+     * and the logger instance are not saved to the database
      */
     public function unsetScheduler()
     {
-        unset($this->scheduler);
+        $this->scheduler = null;
+        $this->logger = null;
     }
 
     /**
@@ -486,9 +468,9 @@ abstract class AbstractTask implements LoggerAwareInterface
      * Removes given execution from list
      *
      * @param int $executionID Id of the execution to remove.
-     * @param \Exception $failure An exception to signal a failed execution
+     * @param \Throwable $failure An exception to signal a failed execution
      */
-    public function unmarkExecution($executionID, \Exception $failure = null)
+    public function unmarkExecution($executionID, \Throwable $failure = null)
     {
         // Get the executions for the task
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -513,7 +495,7 @@ abstract class AbstractTask implements LoggerAwareInterface
             } else {
                 $runningExecutionsSerialized = '';
             }
-            if ($failure instanceof \Exception) {
+            if ($failure instanceof \Throwable) {
                 // Log failed execution
                 $logMessage = 'Task failed to execute successfully. Class: ' . static::class
                     . ', UID: ' . $this->taskUid . ', Code: ' . $failure->getCode() . ', ' . $failure->getMessage();

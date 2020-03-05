@@ -111,6 +111,7 @@ return [
                 'size' => 30,
                 'eval' => 'trim,required',
                 'placeholder' => 'LLL:EXT:redirects/Resources/Private/Language/locallang_module_redirect.xlf:source_path.placeholder',
+                'max' => 2048
             ],
         ],
         'force_https' => [
@@ -168,11 +169,12 @@ return [
                 'fieldControl' => [
                     'linkPopup' => [
                         'options' => [
-                            'blindLinkOptions' => 'mail',
-                            'blindLinkFields' => 'class, target'
+                            'blindLinkOptions' => 'mail,folder,telephone',
+                            'blindLinkFields' => 'class, target, title'
                         ],
                     ],
                 ],
+                'max' => 2048
             ],
         ],
         'target_statuscode' => [

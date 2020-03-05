@@ -1,7 +1,19 @@
 <?php
 declare(strict_types = 1);
-
 namespace TYPO3\CMS\Backend\ViewHelpers\Link;
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
 
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -12,18 +24,24 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
  * pass the uid and table to FormEngine.
  *
  * The uid must be given as a positive integer.
- * For new records, use the newRecordViewHelper
+ * For new records, use the :ref:`<be:link.newRecordViewHelper> <typo3-backend-link-newrecord>`.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Link to the record-edit action passed to FormEngine">
- * <be:link.editRecord uid="42" table="a_table" returnUrl="foo/bar" />
- * </code>
- * <output>
- * <a href="/typo3/index.php?route=/record/edit&edit[a_table][42]=edit&returnUrl=foo/bar">
- *   Edit record
- * </a>
- * </output>
+ * Link to the record-edit action passed to FormEngine::
+ *
+ *    <be:link.editRecord uid="42" table="a_table" returnUrl="foo/bar" />
+ *
+ * Output::
+ *
+ *    <a href="/typo3/index.php?route=/record/edit&edit[a_table][42]=edit&returnUrl=foo/bar">
+ *        Edit record
+ *    </a>
+ *
+ * Link to edit page uid=3 and then return back to the BE module "web_MyextensionList"::
+ *
+ *    <be.link.editRecord uid="3" table="pages" returnUrl="{f:be.uri(route: 'web_MyextensionList')}">
  */
 class EditRecordViewHelper extends AbstractTagBasedViewHelper
 {
@@ -38,7 +56,7 @@ class EditRecordViewHelper extends AbstractTagBasedViewHelper
         $this->registerUniversalTagAttributes();
         $this->registerArgument('uid', 'int', 'uid of record to be edited', true);
         $this->registerArgument('table', 'string', 'target database table', true);
-        $this->registerArgument('returnUrl', 'string', '', false, '');
+        $this->registerArgument('returnUrl', 'string', 'return to this URL after closing the edit dialog', false, '');
     }
 
     /**

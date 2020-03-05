@@ -68,27 +68,27 @@ class JsonView extends AbstractView
      *
      * Example 1:
      *
-     * array(
-     *		'variable1' => array(
-     *			'_only' => array('property1', 'property2', ...)
-     *		),
-     *		'variable2' => array(
-     *	 		'_exclude' => array('property3', 'property4, ...)
-     *		),
-     *		'variable3' => array(
-     *			'_exclude' => array('secretTitle'),
-     *			'_descend' => array(
-     *				'customer' => array(
-     *					'_only' => array('firstName', 'lastName')
-     *				)
-     *			)
-     *		),
-     *		'somearrayvalue' => array(
-     *			'_descendAll' => array(
-     *				'_only' => array('property1')
-     *			)
-     *		)
-     * )
+     * [
+     *      'variable1' => [
+     *          '_only' => ['property1', 'property2', ...]
+     *      ],
+     *      'variable2' => [
+     *          '_exclude' => ['property3', 'property4, ...]
+     *      ],
+     *      'variable3' => [
+     *          '_exclude' => ['secretTitle'],
+     *          '_descend' => [
+     *              'customer' => [
+     *                  '_only' => [array(]'firstName', 'lastName']
+     *              ]
+     *          ]
+     *      ],
+     *      'somearrayvalue' => [
+     *          '_descendAll' => [
+     *              '_only' => ['property1']
+     *          ]
+     *      ]
+     * ]
      *
      * Of variable1 only property1 and property2 will be included.
      * Of variable2 all properties except property3 and property4
@@ -111,18 +111,18 @@ class JsonView extends AbstractView
      *
      * Example 2: exposing object identifier
      *
-     * array(
-     *		'variableFoo' => array(
-     *			'_exclude' => array('secretTitle'),
-     *			'_descend' => array(
-     *				'customer' => array(    // consider 'customer' being a persisted entity
-     *					'_only' => array('firstName'),
-     * 					'_exposeObjectIdentifier' => TRUE,
-     * 					'_exposedObjectIdentifierKey' => 'guid'
-     *				)
-     *			)
-     *		)
-     * )
+     * [
+     *      'variableFoo' => [
+     *          '_exclude' => ['secretTitle'],
+     *          '_descend' => [
+     *              'customer' => [    // consider 'customer' being a persisted entity
+     *                  '_only' => ['firstName'],
+     *                  '_exposeObjectIdentifier' => TRUE,
+     *                  '_exposedObjectIdentifierKey' => 'guid'
+     *              ]
+     *          ]
+     *      ]
+     * ]
      *
      * Note for entity objects you are able to expose the object's identifier
      * also, just add an "_exposeObjectIdentifier" directive set to TRUE and
@@ -135,17 +135,17 @@ class JsonView extends AbstractView
      *
      * Example 3: exposing object's class name
      *
-     * array(
-     *		'variableFoo' => array(
-     *			'_exclude' => array('secretTitle'),
-     *			'_descend' => array(
-     *				'customer' => array(    // consider 'customer' being an object
-     *					'_only' => array('firstName'),
-     * 					'_exposeClassName' => TYPO3\Flow\Mvc\View\JsonView::EXPOSE_CLASSNAME_FULLY_QUALIFIED
-     *				)
-     *			)
-     *		)
-     * )
+     * [
+     *      'variableFoo' => [
+     *          '_exclude' => ['secretTitle'],
+     *          '_descend' => [
+     *              'customer' => [    // consider 'customer' being an object
+     *                  '_only' => ['firstName'],
+     *                  '_exposeClassName' => \TYPO3\CMS\Extbase\Mvc\View\JsonView::EXPOSE_CLASSNAME_FULLY_QUALIFIED
+     *              ]
+     *          ]
+     *      ]
+     * ]
      *
      * The ``_exposeClassName`` is similar to the objectIdentifier one, but the class name is added to the
      * JSON object output, for example (summarized):
@@ -273,10 +273,10 @@ class JsonView extends AbstractView
                 if (isset($configuration['_descendAll']) && is_array($configuration['_descendAll'])) {
                     $array[$key] = $this->transformValue($element, $configuration['_descendAll']);
                 } else {
-                    if (isset($configuration['_only']) && is_array($configuration['_only']) && !in_array($key, $configuration['_only'])) {
+                    if (isset($configuration['_only']) && is_array($configuration['_only']) && !in_array($key, $configuration['_only'], true)) {
                         continue;
                     }
-                    if (isset($configuration['_exclude']) && is_array($configuration['_exclude']) && in_array($key, $configuration['_exclude'])) {
+                    if (isset($configuration['_exclude']) && is_array($configuration['_exclude']) && in_array($key, $configuration['_exclude'], true)) {
                         continue;
                     }
                     $array[$key] = $this->transformValue($element, $configuration[$key] ?? []);
@@ -307,10 +307,10 @@ class JsonView extends AbstractView
 
         $propertiesToRender = [];
         foreach ($propertyNames as $propertyName) {
-            if (isset($configuration['_only']) && is_array($configuration['_only']) && !in_array($propertyName, $configuration['_only'])) {
+            if (isset($configuration['_only']) && is_array($configuration['_only']) && !in_array($propertyName, $configuration['_only'], true)) {
                 continue;
             }
-            if (isset($configuration['_exclude']) && is_array($configuration['_exclude']) && in_array($propertyName, $configuration['_exclude'])) {
+            if (isset($configuration['_exclude']) && is_array($configuration['_exclude']) && in_array($propertyName, $configuration['_exclude'], true)) {
                 continue;
             }
 

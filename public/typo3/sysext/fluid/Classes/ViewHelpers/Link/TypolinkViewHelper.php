@@ -25,31 +25,52 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 /**
  * A ViewHelper to create links from fields supported by the link wizard
  *
- * == Example ==
+ * Example
+ * =======
  *
- * {link} contains "19 _blank - "testtitle with whitespace" &X=y"
+ * ``{link}`` contains: ``t3://page?uid=2&arg1=val1#9 _blank some-css-class "Title containing Whitespace"``.
  *
- * <code title="minimal usage">
- * <f:link.typolink parameter="{link}">
- * Linktext
- * </f:link.typolink>
- * <output>
- * <a href="index.php?id=19&X=y" title="testtitle with whitespace" target="_blank">
- * Linktext
- * </a>
- * </output>
- * </code>
+ * Or a legacy version from older TYPO3 versions:
+ * ``{link}`` contains: ``9 _blank - "testtitle with whitespace" &X=y``.
  *
- * <code title="Full parameter usage">
- * <f:link.typolink parameter="{link}" target="_blank" class="ico-class" title="some title" additionalParams="&u=b" additionalAttributes="{type:'button'}" useCacheHash="true">
- * Linktext
- * </f:link.typolink>
- * </code>
- * <output>
- * <a href="index.php?id=19&X=y&u=b" title="some title" target="_blank" class="ico-class" type="button">
- * Linktext
- * </a>
- * </output>
+ * Minimal usage
+ * -------------
+ *
+ * ::
+ *
+ *    <f:link.typolink parameter="{link}">
+ *       Linktext
+ *    </f:link.typolink>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?X=y" title="testtitle with whitespace" target="_blank">
+ *       Linktext
+ *    </a>
+ *
+ * Depending on current page, routing and page path configuration.
+ *
+ * Full parameter usage
+ * --------------------
+ *
+ * ::
+ *
+ *    <f:link.typolink parameter="{link}" additionalParams="&u=b"
+ *        target="_blank"
+ *        class="ico-class" title="some title"
+ *        additionalAttributes="{type:'button'}"
+ *        useCacheHash="true"
+ *    >
+ *       Linktext
+ *    </f:link.typolink>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?X=y&u=b" title="some title" target="_blank" class="ico-class" type="button">
+ *        Linktext
+ *    </a>
+ *
+ * Depending on routing and page path configuration.
  */
 class TypolinkViewHelper extends AbstractViewHelper
 {

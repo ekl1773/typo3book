@@ -28,10 +28,10 @@ class NumberValidator extends AbstractValidator
     {
         if (!is_numeric($value)) {
             $this->addError(
-            $this->translateErrorMessage(
-                'validator.number.notvalid',
-                'extbase'
-            ),
+                $this->translateErrorMessage(
+                    'validator.number.notvalid',
+                    'extbase'
+                ),
                 1221563685
             );
         }

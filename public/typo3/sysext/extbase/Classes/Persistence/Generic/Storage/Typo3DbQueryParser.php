@@ -400,10 +400,10 @@ class Typo3DbQueryParser
                 }
 
                 return $this->queryBuilder->expr()->comparison(
-                        $this->queryBuilder->quoteIdentifier($tableName . '.uid'),
-                        'IN',
-                        '(' . $queryBuilderForSubselect->getSQL() . ')'
-                    );
+                    $this->queryBuilder->quoteIdentifier($tableName . '.uid'),
+                    'IN',
+                    '(' . $queryBuilderForSubselect->getSQL() . ')'
+                );
             }
             if ($typeOfRelation === ColumnMap::RELATION_HAS_MANY) {
                 $parentKeyFieldName = $columnMap->getParentKeyFieldName();
@@ -424,14 +424,14 @@ class Typo3DbQueryParser
 
                     // Add it to the main query
                     return $this->queryBuilder->expr()->eq(
-                            $tableName . '.uid',
-                            '(' . $queryBuilderForSubselect->getSQL() . ')'
-                        );
+                        $tableName . '.uid',
+                        '(' . $queryBuilderForSubselect->getSQL() . ')'
+                    );
                 }
                 return $this->queryBuilder->expr()->inSet(
-                            $tableName . '.' . $columnName,
-                            $this->queryBuilder->quote($value)
-                        );
+                    $tableName . '.' . $columnName,
+                    $this->queryBuilder->quote($value)
+                );
             }
             throw new RepositoryException('Unsupported or non-existing property name "' . $propertyName . '" used in relation matching.', 1327065745);
         }
@@ -835,7 +835,6 @@ class Typo3DbQueryParser
                                 $this->queryBuilder->expr()->in(
                                     $tableAlias . '.uid',
                                     $queryBuilderForSubselect->getSQL()
-
                                 )
                             )
                         );
@@ -852,21 +851,20 @@ class Typo3DbQueryParser
                                 )
                             );
                     return $this->queryBuilder->expr()->orX(
-                            $this->queryBuilder->expr()->in($tableAlias . '.' . $languageField, [(int)$querySettings->getLanguageUid(), -1]),
-                            $this->queryBuilder->expr()->andX(
-                                $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, 0),
-                                $this->queryBuilder->expr()->notIn(
-                                    $tableAlias . '.uid',
-                                    $queryBuilderForSubselect->getSQL()
-
-                                )
+                        $this->queryBuilder->expr()->in($tableAlias . '.' . $languageField, [(int)$querySettings->getLanguageUid(), -1]),
+                        $this->queryBuilder->expr()->andX(
+                            $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, 0),
+                            $this->queryBuilder->expr()->notIn(
+                                $tableAlias . '.uid',
+                                $queryBuilderForSubselect->getSQL()
                             )
-                        );
+                        )
+                    );
                 }
                 return $this->queryBuilder->expr()->in(
-                        $tableAlias . '.' . $languageField,
-                        [(int)$querySettings->getLanguageUid(), -1]
-                    );
+                    $tableAlias . '.' . $languageField,
+                    [(int)$querySettings->getLanguageUid(), -1]
+                );
             }
         }
         return '';
@@ -922,7 +920,7 @@ class Typo3DbQueryParser
         $andConditions = [];
         // records in language 'all'
         $andConditions[] = $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, -1);
-        // translated records where a default translation exists
+        // translated records where a default language exists
         $andConditions[] = $this->queryBuilder->expr()->andX(
             $this->queryBuilder->expr()->eq($tableAlias . '.' . $languageField, (int)$querySettings->getLanguageUid()),
             $this->queryBuilder->expr()->in(
@@ -932,7 +930,7 @@ class Typo3DbQueryParser
         );
         if ($mode !== 'hideNonTranslated') {
             // $mode = TRUE
-            // returns records from current language which have default translation
+            // returns records from current language which have default language
             // together with not translated default language records
             $translatedOnlyTableAlias = $tableAlias . '_to';
             $queryBuilderForSubselect = $this->queryBuilder->getConnection()->createQueryBuilder();

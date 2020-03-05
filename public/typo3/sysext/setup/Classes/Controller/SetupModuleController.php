@@ -398,6 +398,9 @@ class SetupModuleController
                 if (top && top.TYPO3.ModuleMenu.App) {
                     top.TYPO3.ModuleMenu.App.refreshMenu();
                 }
+                if (top && top.TYPO3.Backend.Topbar) {
+                    top.TYPO3.Backend.Topbar.refresh();
+                }
             ');
         }
         if ($this->pagetreeNeedsRefresh) {
@@ -553,7 +556,7 @@ class SetupModuleController
 
                     if ($type === 'password') {
                         $value = '';
-                        $noAutocomplete = 'autocomplete="off" ';
+                        $noAutocomplete = 'autocomplete="new-password" ';
                         $more .= ' data-rsa-encryption=""';
                     }
                     $html = '<input id="field_' . htmlspecialchars($fieldName) . '"
@@ -637,16 +640,17 @@ class SetupModuleController
                     $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
                     if ($avatarFileUid) {
                         $html .=
-                            '<a id="clear_button_' . htmlspecialchars($fieldName) . '" '
+                            '<button type="button" id="clear_button_' . htmlspecialchars($fieldName) . '" aria-label="' . htmlspecialchars($this->getLanguageService()->getLL('avatar.clear')) . '" '
                                 . 'onclick="clearExistingImage(); return false;" class="btn btn-default">'
                                 . $iconFactory->getIcon('actions-delete', Icon::SIZE_SMALL)
-                            . '</a>';
+                            . '</button>';
                     }
                     $html .=
-                        '<a id="add_button_' . htmlspecialchars($fieldName) . '" class="btn btn-default btn-add-avatar"'
+                        '<button type="button" id="add_button_' . htmlspecialchars($fieldName) . '" class="btn btn-default btn-add-avatar"'
+                            . ' aria-label="' . htmlspecialchars($this->getLanguageService()->getLL('avatar.openFileBrowser')) . '"'
                             . ' onclick="openFileBrowser();return false;">'
                             . $iconFactory->getIcon('actions-insert-record', Icon::SIZE_SMALL)
-                            . '</a></div>';
+                            . '</button></div>';
 
                     $this->addAvatarButtonJs($fieldName);
                     break;

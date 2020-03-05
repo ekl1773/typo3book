@@ -21,6 +21,7 @@ use Symfony\Component\Routing\Exception\NoConfigurationException;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\Matcher\UrlMatcher;
 use Symfony\Component\Routing\RequestContext;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Site\Entity\PseudoSite;
@@ -29,7 +30,9 @@ use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Site\PseudoSiteFinder;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Core\Utility\RootlineUtility;
 use TYPO3\CMS\Frontend\Page\PageRepository;
 
 /**
@@ -67,6 +70,22 @@ class SiteMatcher implements SingletonInterface
     {
         $this->finder = $finder ?? GeneralUtility::makeInstance(SiteFinder::class);
         $this->pseudoSiteFinder = GeneralUtility::makeInstance(PseudoSiteFinder::class);
+    }
+
+    /**
+     * Only used when a page is moved but the pseudo site caches has this information hard-coded, so the caches
+     * need to be flushed.
+     *
+     * @internal
+     * @throws \TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException
+     */
+    public function refresh()
+    {
+        /** Ensure root line caches are flushed */
+        RootlineUtility::purgeCaches();
+        GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_rootline')->flush();
+        $this->pseudoSiteFinder = GeneralUtility::makeInstance(PseudoSiteFinder::class);
+        $this->pseudoSiteFinder->refresh();
     }
 
     /**
@@ -122,7 +141,7 @@ class SiteMatcher implements SingletonInterface
             $context = new RequestContext(
                 '',
                 $request->getMethod(),
-                $request->getUri()->getHost(),
+                HttpUtility::idn_to_ascii($request->getUri()->getHost()),
                 $request->getUri()->getScheme(),
                 // Ports are only necessary for URL generation in Symfony which is not used by TYPO3
                 80,
@@ -240,7 +259,7 @@ class SiteMatcher implements SingletonInterface
                     ['site' => $site, 'language' => $siteLanguage, 'tail' => ''],
                     array_filter(['tail' => '.*', 'port' => (string)$uri->getPort()]),
                     ['utf8' => true],
-                    $uri->getHost() ?: '',
+                    HttpUtility::idn_to_ascii($uri->getHost()) ?: '',
                     $uri->getScheme()
                 );
                 $identifier = 'site_' . $site->getIdentifier() . '_' . $siteLanguage->getLanguageId();
@@ -296,6 +315,8 @@ class SiteMatcher implements SingletonInterface
     protected function createRouteCollectionFromGroupedRoutes(array $groupedRoutes): RouteCollection
     {
         $collection = new RouteCollection();
+        // Ensure more generic routes containing '-' in host identifier, processed at last
+        krsort($groupedRoutes);
         foreach ($groupedRoutes as $groupedRoutesPerHost) {
             krsort($groupedRoutesPerHost);
             foreach ($groupedRoutesPerHost as $groupedRoutesPerPath) {

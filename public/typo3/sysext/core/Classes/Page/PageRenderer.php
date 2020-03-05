@@ -17,13 +17,12 @@ namespace TYPO3\CMS\Core\Page;
 use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Cache\CacheManager;
-use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\MetaTag\MetaTagManagerRegistry;
+use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
@@ -180,13 +179,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @var array
      */
     protected $metaTags = [];
-
-    /**
-     * META Tags added via the API
-     *
-     * @var array
-     */
-    protected $metaTagsByAPI = [];
 
     /**
      * @var array
@@ -430,6 +422,15 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
+     * Set restored meta tag managers as singletons
+     * so that uncached plugins can use them to add or remove meta tags
+     */
+    public function __wakeup()
+    {
+        GeneralUtility::setSingletonInstance(get_class($this->metaTagRegistry), $this->metaTagRegistry);
+    }
+
+    /**
      * @param FrontendInterface $cache
      */
     public static function setCache(FrontendInterface $cache)
@@ -451,7 +452,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $this->cssFiles = [];
         $this->cssInline = [];
         $this->metaTags = [];
-        $this->metaTagsByAPI = [];
         $this->inlineComments = [];
         $this->headerData = [];
         $this->footerData = [];
@@ -1036,7 +1036,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 1496402460
             );
         }
-
         $manager = $this->metaTagRegistry->getManagerForProperty($name);
         $manager->addProperty($name, $content, $subProperties, $replace, $type);
     }
@@ -1446,16 +1445,16 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             return;
         }
 
-        $loadedExtensions = ExtensionManagementUtility::getLoadedExtensionListArray();
+        $packages = GeneralUtility::makeInstance(PackageManager::class)->getActivePackages();
         $isDevelopment = GeneralUtility::getApplicationContext()->isDevelopment();
-        $cacheIdentifier = 'requireJS_' . md5(implode(',', $loadedExtensions) . ($isDevelopment ? ':dev' : '') . GeneralUtility::getIndpEnv('TYPO3_REQUEST_SCRIPT'));
+        $cacheIdentifier = 'requireJS_' . md5(implode(',', array_keys($packages)) . ($isDevelopment ? ':dev' : '') . GeneralUtility::getIndpEnv('TYPO3_REQUEST_SCRIPT'));
         /** @var FrontendInterface $cache */
         $cache = static::$cache ?? GeneralUtility::makeInstance(CacheManager::class)->getCache('assets');
         $requireJsConfig = $cache->get($cacheIdentifier);
 
         // if we did not get a configuration from the cache, compute and store it in the cache
-        if (!isset($requireJsConfig['internal']) || !isset($requireJsConfig['public']) || true) {
-            $requireJsConfig = $this->computeRequireJsConfig($isDevelopment, $loadedExtensions);
+        if (!isset($requireJsConfig['internal']) || !isset($requireJsConfig['public'])) {
+            $requireJsConfig = $this->computeRequireJsConfig($isDevelopment, $packages);
             $cache->set($cacheIdentifier, $requireJsConfig);
         }
 
@@ -1469,10 +1468,10 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * resource folders plus some additional generic configuration.
      *
      * @param bool $isDevelopment
-     * @param array $loadedExtensions
+     * @param array $packages
      * @return array The RequireJS configuration
      */
-    protected function computeRequireJsConfig($isDevelopment, array $loadedExtensions)
+    protected function computeRequireJsConfig($isDevelopment, array $packages)
     {
         // load all paths to map to package names / namespaces
         $requireJsConfig = [
@@ -1481,13 +1480,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             'internalNames' => [],
         ];
 
-        // In order to avoid browser caching of JS files, adding a GET parameter to the files loaded via requireJS
-        if ($isDevelopment) {
-            $requireJsConfig['public']['urlArgs'] = 'bust=' . $GLOBALS['EXEC_TIME'];
-        } else {
-            $requireJsConfig['public']['urlArgs'] = 'bust=' . GeneralUtility::hmac(TYPO3_version . Environment::getProjectPath());
-        }
-        $corePath = ExtensionManagementUtility::extPath('core', 'Resources/Public/JavaScript/Contrib/');
+        $corePath = $packages['core']->getPackagePath() . 'Resources/Public/JavaScript/Contrib/';
         $corePath = PathUtility::getAbsoluteWebPath($corePath);
         // first, load all paths for the namespaces, and configure contrib libs.
         $requireJsConfig['public']['paths'] = [
@@ -1509,14 +1502,15 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $requireJsConfig['public']['waitSeconds'] = 30;
         $requireJsConfig['public']['typo3BaseUrl'] = false;
         $publicPackageNames = ['core', 'frontend', 'backend'];
-        foreach ($loadedExtensions as $packageName) {
-            $jsPath = 'EXT:' . $packageName . '/Resources/Public/JavaScript/';
-            $absoluteJsPath = GeneralUtility::getFileAbsFileName($jsPath);
+        $requireJsExtensionVersions = [];
+        foreach ($packages as $packageName => $package) {
+            $absoluteJsPath = $package->getPackagePath() . 'Resources/Public/JavaScript/';
             $fullJsPath = PathUtility::getAbsoluteWebPath($absoluteJsPath);
             $fullJsPath = rtrim($fullJsPath, '/');
             if (!empty($fullJsPath) && file_exists($absoluteJsPath)) {
                 $type = in_array($packageName, $publicPackageNames, true) ? 'public' : 'internal';
                 $requireJsConfig[$type]['paths']['TYPO3/CMS/' . GeneralUtility::underscoredToUpperCamelCase($packageName)] = $fullJsPath;
+                $requireJsExtensionVersions[] = $package->getPackageKey() . ':' . $package->getPackageMetadata()->getVersion();
             }
         }
         // sanitize module names in internal 'paths'
@@ -1532,6 +1526,15 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             $sanitizedInternalPathModuleNames,
             $internalPathModuleNames
         );
+
+        // Add a GET parameter to the files loaded via requireJS in order to avoid browser caching of JS files
+        if ($isDevelopment) {
+            $requireJsConfig['public']['urlArgs'] = 'bust=' . $GLOBALS['EXEC_TIME'];
+        } else {
+            $requireJsConfig['public']['urlArgs'] = 'bust=' . GeneralUtility::hmac(
+                Environment::getProjectPath() . implode('|', $requireJsExtensionVersions)
+            );
+        }
 
         // check if additional AMD modules need to be loaded if a single AMD module is initialized
         if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['RequireJS']['postInitializationModules'] ?? false)) {
@@ -1603,11 +1606,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
 
         if (!empty($requireJsConfig['typo3BaseUrl'])) {
             $html .= '<script src="'
-                . $this->processJsFile($this->getAbsoluteWebPath(
-                    GeneralUtility::getFileAbsFileName(
-                        'EXT:core/Resources/Public/JavaScript/requirejs-loader.js'
-                    )
-                ))
+                . $this->processJsFile(
+                    'EXT:core/Resources/Public/JavaScript/requirejs-loader.js'
+                )
                 . '" type="text/javascript"></script>' . LF;
         }
 
@@ -1842,33 +1843,11 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     {
         $metaTags = [];
         $metaTagManagers = $this->metaTagRegistry->getAllManagers();
-        try {
-            $cache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_pages');
-        } catch (NoSuchCacheException $e) {
-            $cache = null;
-        }
 
         foreach ($metaTagManagers as $manager => $managerObject) {
-            $cacheIdentifier =  $this->getTypoScriptFrontendController()->newHash . '-metatag-' . $manager;
-
-            $existingCacheEntry = false;
-            if ($cache instanceof FrontendInterface && $properties = $cache->get($cacheIdentifier)) {
-                $existingCacheEntry = true;
-            } else {
-                $properties = $managerObject->renderAllProperties();
-            }
-
+            $properties = $managerObject->renderAllProperties();
             if (!empty($properties)) {
                 $metaTags[] = $properties;
-
-                if ($cache instanceof FrontendInterface && !$existingCacheEntry && ($this->getTypoScriptFrontendController()->page['uid'] ?? false)) {
-                    $cache->set(
-                        $cacheIdentifier,
-                        $properties,
-                        ['pageId_' . $this->getTypoScriptFrontendController()->page['uid']],
-                        $this->getTypoScriptFrontendController()->get_cache_timeout()
-                    );
-                }
             }
         }
         return $metaTags;

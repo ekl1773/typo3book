@@ -19,14 +19,13 @@ use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 
 /**
- * Debuggable version of f:render - performs the same
- * rendering operation but wraps the output with HTML
- * that can be inspected with the admin panel in FE.
+ * Debuggable version of :ref:`f:render <typo3-fluid-render>` - performs the
+ * same rendering operation but wraps the output with HTML that can be
+ * inspected with the admin panel in frontend.
  *
- * Replaces `f:render` when the admin panel decides
- * (see ViewHelperResolver class). Also possible to use
- * explicitly by using `f:debug.render` instead of the
- * normal `f:render` statement.
+ * Replaces ``f:render`` when the admin panel decides (see
+ * :php:`ViewHelperResolver` class). Also possible to use explicitly by using
+ * ``f:debug.render`` instead of the normal ``f:render`` statement.
  */
 class RenderViewHelper extends AbstractViewHelper
 {
@@ -37,7 +36,7 @@ class RenderViewHelper extends AbstractViewHelper
     protected $escapeOutput = false;
 
     /**
-     * Initializes additional arguments available for this view helper.
+     * Initializes additional arguments available for this ViewHelper.
      */
     public function initializeArguments()
     {
@@ -71,10 +70,11 @@ class RenderViewHelper extends AbstractViewHelper
         }
 
         $content = '';
+        $viewHelperVariableContainer = $this->renderingContext->getViewHelperVariableContainer();
         if ($partial !== null) {
-            $content = $this->viewHelperVariableContainer->getView()->renderPartial($partial, $section, $arguments, $optional);
+            $content = $viewHelperVariableContainer->getView()->renderPartial($partial, $section, $arguments, $optional);
         } elseif ($section !== null) {
-            $content = $this->viewHelperVariableContainer->getView()->renderSection($section, $arguments, $optional);
+            $content = $viewHelperVariableContainer->getView()->renderSection($section, $arguments, $optional);
         }
         // Replace empty content with default value. If default is
         // not set, NULL is returned and cast to a new, empty string

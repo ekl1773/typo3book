@@ -101,20 +101,6 @@ class IconRegistry implements SingletonInterface
          * please request them at: https://github.com/typo3/typo3.icons/issues
          */
 
-        // Actions
-        'actions-wizard-link' => [
-            'provider' => FontawesomeIconProvider::class,
-            'options' => [
-                'name' => 'link'
-            ]
-        ],
-        'actions-wizard-rte' => [
-            'provider' => FontawesomeIconProvider::class,
-            'options' => [
-                'name' => 'arrows-alt'
-            ]
-        ],
-
         // Apps
         'apps-pagetree-category-toggle-hide-checked' => [
             'provider' => FontawesomeIconProvider::class,
@@ -238,32 +224,6 @@ class IconRegistry implements SingletonInterface
             'provider' => FontawesomeIconProvider::class,
             'options' => [
                 'name' => 'times',
-            ]
-        ],
-
-        // Extensions
-        'extensions-extensionmanager-update-script' => [
-            'provider' => FontawesomeIconProvider::class,
-            'options' => [
-                'name' => 'refresh',
-            ]
-        ],
-        'extensions-scheduler-run-task' => [
-            'provider' => FontawesomeIconProvider::class,
-            'options' => [
-                'name' => 'play-circle',
-            ]
-        ],
-        'extensions-scheduler-run-task-cron' => [
-            'provider' => FontawesomeIconProvider::class,
-            'options' => [
-                'name' => 'clock-o',
-            ]
-        ],
-        'generate-ws-preview-link' => [
-            'provider' => BitmapIconProvider::class,
-            'options' => [
-                'source' => 'EXT:workspaces/Resources/Public/Images/generate-ws-preview-link.png'
             ]
         ],
 
@@ -473,12 +433,17 @@ class IconRegistry implements SingletonInterface
      * @var array
      */
     protected $deprecatedIcons = [
+        'module-workspaces-action-preview-link' => 'actions-version-workspaces-preview-link',
+        'generate-ws-preview-link' => 'actions-version-workspaces-preview-link',
+        'extensions-workspaces-generatepreviewlink' => 'actions-version-workspaces-preview-link',
+        'extensions-extensionmanager-update-script' => 'actions-refresh',
+        'extensions-scheduler-run-task' => 'actions-play',
+        'extensions-scheduler-run-task-cron' => 'actions-clock',
         'status-warning-lock' => 'warning-lock',
         'status-warning-in-use' => 'warning-in-use',
         'status-status-reference-hard' => 'status-reference-hard',
         'status-status-reference-soft' => 'status-reference-soft',
         'status-status-edit-read-only' => 'status-edit-read-only',
-        'extensions-workspaces-generatepreviewlink' => 'generate-ws-preview-link',
         't3-form-icon-advanced-password' => 'form-advanced-password',
         't3-form-icon-checkbox' => 'form-checkbox',
         't3-form-icon-content-element' => 'form-content-element',
@@ -877,7 +842,7 @@ class IconRegistry implements SingletonInterface
             'JE', 'JM', 'JO', 'JP',
             'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ',
             'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'LY',
-            'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ',
+            'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MI', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ',
             'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ',
             'OM',
             'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM', 'PN', 'PR', 'PS', 'PT', 'PW', 'PY',

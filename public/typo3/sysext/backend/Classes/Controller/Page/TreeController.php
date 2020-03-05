@@ -21,11 +21,13 @@ use TYPO3\CMS\Backend\Configuration\BackendUserConfiguration;
 use TYPO3\CMS\Backend\Tree\Repository\PageTreeRepository;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Database\Query\Restriction\DocumentTypeExclusionRestriction;
 use TYPO3\CMS\Core\Exception\Page\RootLineException;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Site\PseudoSiteFinder;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\Bitmask\JsConfirmation;
@@ -153,7 +155,7 @@ class TreeController
             if (!$isAdmin && !in_array($doktype, $allowedDoktypes, true)) {
                 continue;
             }
-            $label = htmlspecialchars($GLOBALS['LANG']->sL($doktypeLabelMap[$doktype]));
+            $label = htmlspecialchars($this->getLanguageService()->sL($doktypeLabelMap[$doktype]));
             $output[] = [
                 'nodeType' => $doktype,
                 'icon' => $GLOBALS['TCA']['pages']['ctrl']['typeicon_classes'][$doktype] ?? '',
@@ -263,9 +265,8 @@ class TreeController
             $visibleText = $page['nav_title'];
         }
         if (trim($visibleText) === '') {
-            $visibleText = htmlspecialchars('[' . $GLOBALS['LANG']->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']');
+            $visibleText = htmlspecialchars('[' . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']');
         }
-        $visibleText = GeneralUtility::fixed_lgd_cs($visibleText, (int)$this->getBackendUser()->uc['titleLen'] ?: 40);
 
         if ($this->addDomainName && $page['is_siteroot']) {
             $domain = $this->getDomainNameForPage($pageId);
@@ -281,32 +282,59 @@ class TreeController
         }
 
         $items = [];
-        $items[] = [
+        $item = [
             // Used to track if the tree item is collapsed or not
             'stateIdentifier' => $identifier,
             'identifier' => $pageId,
             'depth' => $depth,
             'tip' => htmlspecialchars($tooltip),
-            'hasChildren' => !empty($page['_children']),
             'icon' => $icon->getIdentifier(),
             'name' => $visibleText,
             'nameSourceField' => $nameSourceField,
             'alias' => htmlspecialchars($page['alias'] ?? ''),
-            'prefix' => htmlspecialchars($prefix),
-            'suffix' => htmlspecialchars($suffix),
-            'locked' => is_array($lockInfo),
-            'overlayIcon' => $icon->getOverlayIcon() ? $icon->getOverlayIcon()->getIdentifier() : '',
             'selectable' => true,
-            'expanded' => (bool)$expanded,
             'checked' => false,
-            'backgroundColor' => htmlspecialchars($backgroundColor),
-            'stopPageTree' => $stopPageTree,
-            'class' => $this->resolvePageCssClassNames($page),
-            'readableRootline' => $depth === 0 && $this->showMountPathAboveMounts ? $this->getMountPointPath($pageId) : '',
-            'isMountPoint' => $depth === 0,
             'mountPoint' => $entryPoint,
             'workspaceId' => !empty($page['t3ver_oid']) ? $page['t3ver_oid'] : $pageId,
         ];
+
+        if (!empty($page['_children'])) {
+            $item['hasChildren'] = true;
+        }
+        if (!empty($prefix)) {
+            $item['prefix'] = htmlspecialchars($prefix);
+        }
+        if (!empty($suffix)) {
+            $item['suffix'] = htmlspecialchars($suffix);
+        }
+        if (is_array($lockInfo)) {
+            $item['locked'] = true;
+        }
+        if ($icon->getOverlayIcon()) {
+            $item['overlayIcon'] = $icon->getOverlayIcon()->getIdentifier();
+        }
+        if ($expanded) {
+            $item['expanded'] = $expanded;
+        }
+        if ($backgroundColor) {
+            $item['backgroundColor'] = htmlspecialchars($backgroundColor);
+        }
+        if ($stopPageTree) {
+            $item['stopPageTree'] = $stopPageTree;
+        }
+        $class = $this->resolvePageCssClassNames($page);
+        if (!empty($class)) {
+            $item['class'] = $class;
+        }
+        if ($depth === 0) {
+            $item['isMountPoint'] = true;
+
+            if ($this->showMountPathAboveMounts) {
+                $item['readableRootline'] = $this->getMountPointPath($pageId);
+            }
+        }
+
+        $items[] = $item;
         if (!$stopPageTree) {
             foreach ($page['_children'] as $child) {
                 $items = array_merge($items, $this->pagesToFlatArray($child, $entryPoint, $depth + 1, ['backgroundColor' => $backgroundColor]));
@@ -323,7 +351,21 @@ class TreeController
     protected function getAllEntryPointPageTrees(): array
     {
         $backendUser = $this->getBackendUser();
-        $repository = GeneralUtility::makeInstance(PageTreeRepository::class, (int)$backendUser->workspace);
+
+        $userTsConfig = $this->getBackendUser()->getTSConfig();
+        $excludedDocumentTypes = GeneralUtility::intExplode(',', $userTsConfig['options.']['pageTree.']['excludeDoktypes'] ?? '', true);
+
+        $additionalQueryRestrictions = [];
+        if (!empty($excludedDocumentTypes)) {
+            $additionalQueryRestrictions[] = $this->retrieveDocumentTypeExclusionRestriction($excludedDocumentTypes);
+        }
+
+        $repository = GeneralUtility::makeInstance(
+            PageTreeRepository::class,
+            (int)$backendUser->workspace,
+            [],
+            $additionalQueryRestrictions
+        );
 
         $entryPoints = (int)($backendUser->uc['pageTree_temporaryMountPoint'] ?? 0);
         if ($entryPoints > 0) {
@@ -372,6 +414,19 @@ class TreeController
         }
 
         return $entryPoints;
+    }
+
+    /**
+     * @param int[] $excludedDocumentTypes
+     * @return DocumentTypeExclusionRestriction|null
+     */
+    protected function retrieveDocumentTypeExclusionRestriction(array $excludedDocumentTypes): ?DocumentTypeExclusionRestriction
+    {
+        if (empty($excludedDocumentTypes)) {
+            return null;
+        }
+
+        return GeneralUtility::makeInstance(DocumentTypeExclusionRestriction::class, $excludedDocumentTypes);
     }
 
     /**
@@ -471,5 +526,13 @@ class TreeController
     protected function getBackendUser(): BackendUserAuthentication
     {
         return $GLOBALS['BE_USER'];
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

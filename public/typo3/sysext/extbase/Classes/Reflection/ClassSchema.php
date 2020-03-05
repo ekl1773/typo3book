@@ -57,7 +57,7 @@ class ClassSchema
      *
      * @var int
      */
-    protected $modelType = self::MODELTYPE_ENTITY;
+    protected $modelType = 0;
 
     /**
      * Whether a repository exists for the class this schema is referring to
@@ -523,8 +523,8 @@ class ClassSchema
                     $this->methods[$methodName]['params'][$parameterName]['defaultValue'] = $reflectionParameter->getDefaultValue(); // compat
                 }
 
-                if (($reflectionType = $reflectionParameter->getType()) instanceof \ReflectionType) {
-                    $this->methods[$methodName]['params'][$parameterName]['type'] = (string)$reflectionType;
+                if (($reflectionType = $reflectionParameter->getType()) instanceof \ReflectionNamedType) {
+                    $this->methods[$methodName]['params'][$parameterName]['type'] = $reflectionType->getName();
                     $this->methods[$methodName]['params'][$parameterName]['nullable'] = $reflectionType->allowsNull();
                 }
 

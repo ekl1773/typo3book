@@ -209,12 +209,6 @@ class EvaluateDisplayConditions implements FormDataProviderInterface
                         1481380393
                     );
                 }
-                if (count($groupedDisplayConditions) < 2) {
-                    throw new \RuntimeException(
-                        'With multiple conditions combined by "' . $logicalOperator . '", there must be at least two sub conditions',
-                        1481464101
-                    );
-                }
                 $conditionArray = [
                     'type' => $logicalOperator,
                     'subConditions' => [],
@@ -430,7 +424,7 @@ class EvaluateDisplayConditions implements FormDataProviderInterface
                 break;
             default:
                 throw new \RuntimeException(
-                    'Unknown condition rule type "' . $namedConditionArray['type'] . '" with display condition "' . $conditionString . '"".',
+                    'Unknown condition rule type "' . $namedConditionArray['type'] . '" with display condition "' . $conditionString . '".',
                     1481381950
                 );
         }

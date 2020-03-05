@@ -52,6 +52,12 @@ call_user_func(function () {
 
     $ll = 'LLL:EXT:blog/Resources/Private/Language/locallang_db.xlf:';
     $temporaryColumns = [
+        'crdate' => [
+            'label' => 'crdate',
+            'config' => [
+                'type' => 'passthrough',
+            ],
+        ],
         'comments_active' => [
             'exclude' => 1,
             'label' => $ll . 'pages.comments_active',
@@ -120,6 +126,9 @@ call_user_func(function () {
                 'size' => '13',
                 'eval' => 'datetime',
                 'default' => '0',
+                'behaviour' => [
+                    'allowLanguageSynchronization' => true
+                ]
             ],
         ],
         'publish_date' => [
@@ -131,6 +140,9 @@ call_user_func(function () {
                 'size' => '13',
                 'eval' => 'datetime',
                 'default' => '0',
+                'behaviour' => [
+                    'allowLanguageSynchronization' => true
+                ]
             ],
         ],
         'tags' => [
@@ -148,6 +160,9 @@ call_user_func(function () {
                 'foreign_table_where' => 'AND tx_blog_domain_model_tag.sys_language_uid IN (0,-1) AND tx_blog_domain_model_tag.pid = ###PAGE_TSCONFIG_ID### ORDER BY tx_blog_domain_model_tag.title ASC',
                 'MM' => 'tx_blog_tag_pages_mm',
                 'enableMultiSelectFilterTextfield' => 1,
+                'behaviour' => [
+                    'allowLanguageSynchronization' => true
+                ]
             ],
         ],
         'authors' => [
@@ -161,6 +176,9 @@ call_user_func(function () {
                 'MM' => 'tx_blog_post_author_mm',
                 'minitems' => 0,
                 'maxitems' => 99999,
+                'behaviour' => [
+                    'allowLanguageSynchronization' => true
+                ]
             ],
         ],
     ];

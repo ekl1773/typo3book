@@ -23,6 +23,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
@@ -679,7 +680,12 @@ class QueryGenerator
                         if (is_array($conf['inputValue'])) {
                             $conf['inputValue'] = implode(',', $conf['inputValue']);
                         }
-                        $lineHTML[] = '<input class="form-control t3js-clearable" type="text" value="' . htmlspecialchars($conf['inputValue']) . '" name="' . $fieldPrefix . '[inputValue]' . '">';
+                        $lineHTML[] = '<input class="form-control t3js-clearable" type="text" value="' . htmlspecialchars($conf['inputValue']) . '" name="' . $fieldPrefix . '[inputValue]">';
+                    } elseif ($conf['comparison'] === 64) {
+                        if (is_array($conf['inputValue'])) {
+                            $conf['inputValue'] = $conf['inputValue'][0];
+                        }
+                        $lineHTML[] = '<select class="form-control t3js-submit-change" name="' . $fieldPrefix . '[inputValue]">';
                     } else {
                         $lineHTML[] = '<select class="form-control t3js-submit-change" name="' . $fieldPrefix . '[inputValue]' . '">';
                     }
@@ -814,17 +820,27 @@ class QueryGenerator
             }
         }
         if ($fieldSetup['type'] === 'multiple') {
+            $optGroupOpen = false;
             foreach ($fieldSetup['items'] as $key => $val) {
                 if (strpos($val[0], 'LLL:') === 0) {
                     $value = $languageService->sL($val[0]);
                 } else {
                     $value = $val[0];
                 }
-                if (GeneralUtility::inList($conf['inputValue'], $val[1])) {
+                if ($val[1] === '--div--') {
+                    if ($optGroupOpen) {
+                        $out[] = '</optgroup>';
+                    }
+                    $optGroupOpen = true;
+                    $out[] = '<optgroup label="' . htmlspecialchars($value) . '">';
+                } elseif (GeneralUtility::inList($conf['inputValue'], $val[1])) {
                     $out[] = '<option value="' . htmlspecialchars($val[1]) . '" selected>' . htmlspecialchars($value) . '</option>';
                 } else {
                     $out[] = '<option value="' . htmlspecialchars($val[1]) . '">' . htmlspecialchars($value) . '</option>';
                 }
+            }
+            if ($optGroupOpen) {
+                $out[] = '</optgroup>';
             }
         }
         if ($fieldSetup['type'] === 'binary') {
@@ -1277,18 +1293,12 @@ class QueryGenerator
         ksort($queryConfig);
         $first = 1;
         foreach ($queryConfig as $key => $conf) {
-            // Convert ISO-8601 timestamp (string) into unix timestamp (int)
-            if (strtotime($conf['inputValue'])) {
-                $conf['inputValue'] = strtotime($conf['inputValue']);
-                if ($conf['inputValue1'] && strtotime($conf['inputValue1'])) {
-                    $conf['inputValue1'] = strtotime($conf['inputValue1']);
-                }
-            }
+            $conf = $this->convertIso8601DatetimeStringToUnixTimestamp($conf);
             switch ($conf['type']) {
                 case 'newlevel':
                     $qs .= LF . $pad . trim($conf['operator']) . ' (' . $this->getQuery(
                         $queryConfig[$key]['nl'],
-                            $pad . '   '
+                        $pad . '   '
                     ) . LF . $pad . ')';
                     break;
                 case 'userdef':
@@ -1300,6 +1310,40 @@ class QueryGenerator
             $first = 0;
         }
         return $qs;
+    }
+
+    /**
+     * Convert ISO-8601 timestamp (string) into unix timestamp (int)
+     *
+     * @param array $conf
+     * @return array
+     */
+    protected function convertIso8601DatetimeStringToUnixTimestamp(array $conf): array
+    {
+        if ($this->isDateOfIso8601Format($conf['inputValue'])) {
+            $conf['inputValue'] = strtotime($conf['inputValue']);
+            if ($this->isDateOfIso8601Format($conf['inputValue1'])) {
+                $conf['inputValue1'] = strtotime($conf['inputValue1']);
+            }
+        }
+
+        return $conf;
+    }
+
+    /**
+     * Checks if the given value is of the ISO 8601 format.
+     *
+     * @param mixed $date
+     * @return bool
+     */
+    protected function isDateOfIso8601Format($date): bool
+    {
+        if (!is_int($date) && !is_string($date)) {
+            return false;
+        }
+        $format = 'Y-m-d\\TH:i:s\\Z';
+        $formattedDate = \DateTime::createFromFormat($format, $date);
+        return $formattedDate && $formattedDate->format($format) === $date;
     }
 
     /**
@@ -1316,14 +1360,18 @@ class QueryGenerator
         $prefix = $this->enablePrefix ? $this->table . '.' : '';
         if (!$first) {
             // Is it OK to insert the AND operator if none is set?
-            $qs .= trim($conf['operator'] ?: 'AND') . ' ';
+            $operator = strtoupper(trim($conf['operator']));
+            if (!in_array($operator, ['AND', 'OR'], true)) {
+                $operator = 'AND';
+            }
+            $qs .= $operator . ' ';
         }
         $qsTmp = str_replace('#FIELD#', $prefix . trim(substr($conf['type'], 6)), $this->compSQL[$conf['comparison']]);
         $inputVal = $this->cleanInputVal($conf);
         if ($conf['comparison'] === 68 || $conf['comparison'] === 69) {
             $inputVal = explode(',', $inputVal);
             foreach ($inputVal as $key => $fileName) {
-                $inputVal[$key] = '\'' . $fileName . '\'';
+                $inputVal[$key] = $queryBuilder->quote($fileName);
             }
             $inputVal = implode(',', $inputVal);
             $qsTmp = str_replace('#VALUE#', $inputVal, $qsTmp);
@@ -1372,9 +1420,13 @@ class QueryGenerator
             } else {
                 $inputVal = 0;
             }
-        } elseif (strtotime($conf['inputValue' . $suffix])) {
+        } elseif (!is_array($conf['inputValue' . $suffix]) && strtotime($conf['inputValue' . $suffix])) {
             $inputVal = $conf['inputValue' . $suffix];
+        } elseif (!is_array($conf['inputValue' . $suffix]) && MathUtility::canBeInterpretedAsInteger($conf['inputValue' . $suffix])) {
+            $inputVal = (int)$conf['inputValue' . $suffix];
         } else {
+            // TODO: Six eyes looked at this code and nobody understood completely what is going on here and why we
+            // fallback to float casting, the whole class smells like it needs a refactoring.
             $inputVal = (float)$conf['inputValue' . $suffix];
         }
         return $inputVal;
@@ -1459,7 +1511,7 @@ class QueryGenerator
                 $this->extFieldLists['queryOrder_SQL'] = implode(',', $reList);
             }
             // Query Generator:
-            $this->procesData($modSettings['queryConfig'] ? unserialize($modSettings['queryConfig']) : '');
+            $this->procesData($modSettings['queryConfig'] ? unserialize($modSettings['queryConfig'], ['allowed_classes' => false]) : '');
             $this->queryConfig = $this->cleanUpQueryConfig($this->queryConfig);
             $this->enableQueryParts = (bool)$modSettings['search_query_smallparts'];
             $codeArr = $this->getFormElements();

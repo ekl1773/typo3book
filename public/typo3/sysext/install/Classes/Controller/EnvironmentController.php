@@ -29,6 +29,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Utility\CommandUtility;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Install\FolderStructure\DefaultFactory;
 use TYPO3\CMS\Install\FolderStructure\DefaultPermissionsCheck;
@@ -67,7 +68,7 @@ class EnvironmentController extends AbstractController
     {
         $view = $this->initializeStandaloneView($request, 'Environment/SystemInformation.html');
         $view->assignMultiple([
-            'systemInformationCgiDetected', GeneralUtility::isRunningOnCgiServerApi(),
+            'systemInformationCgiDetected' => GeneralUtility::isRunningOnCgiServerApi(),
             'systemInformationDatabaseConnections' => $this->getDatabaseConnectionInformation(),
             'systemInformationOperatingSystem' => Environment::isWindows() ? 'Windows' : 'Unix',
         ]);
@@ -212,6 +213,7 @@ class EnvironmentController extends AbstractController
     {
         $messages = new FlashMessageQueue('install');
         $recipient = $request->getParsedBody()['install']['email'];
+        $delivered = false;
         if (empty($recipient) || !GeneralUtility::validEmail($recipient)) {
             $messages->enqueue(new FlashMessage(
                 'Given address is not a valid email address.',
@@ -219,21 +221,38 @@ class EnvironmentController extends AbstractController
                 FlashMessage::ERROR
             ));
         } else {
-            $mailMessage = GeneralUtility::makeInstance(MailMessage::class);
-            $mailMessage
-                ->addTo($recipient)
-                ->addFrom($this->getSenderEmailAddress(), $this->getSenderEmailName())
-                ->setSubject($this->getEmailSubject())
-                ->setBody('<html><body>html test content</body></html>', 'text/html')
-                ->addPart('plain test content', 'text/plain')
-                ->send();
-            $messages->enqueue(new FlashMessage(
-                'Recipient: ' . $recipient,
-                'Test mail sent'
-            ));
+            try {
+                $mailMessage = GeneralUtility::makeInstance(MailMessage::class);
+                $mailMessage
+                    ->addTo($recipient)
+                    ->addFrom($this->getSenderEmailAddress(), $this->getSenderEmailName())
+                    ->setSubject($this->getEmailSubject())
+                    ->setBody('<html><body>html test content</body></html>', 'text/html')
+                    ->addPart('plain test content', 'text/plain')
+                    ->send();
+                $messages->enqueue(new FlashMessage(
+                    'Recipient: ' . $recipient,
+                    'Test mail sent'
+                ));
+                $delivered = true;
+            } catch (\Swift_RfcComplianceException $exception) {
+                $messages->enqueue(new FlashMessage(
+                    'Please verify $GLOBALS[\'TYPO3_CONF_VARS\'][\'MAIL\'][\'defaultMailFromAddress\'] is a valid mail address.'
+                        . ' Error message: ' . $exception->getMessage(),
+                    'RFC compliance problem',
+                    FlashMessage::ERROR
+                ));
+            } catch (\Throwable $throwable) {
+                $messages->enqueue(new FlashMessage(
+                    'Please verify $GLOBALS[\'TYPO3_CONF_VARS\'][\'MAIL\'][*] settings are valid.'
+                        . ' Error message: ' . $throwable->getMessage(),
+                    'Could not deliver mail',
+                    FlashMessage::ERROR
+                ));
+            }
         }
         return new JsonResponse([
-            'success' => true,
+            'success' => $delivered,
             'status' => $messages,
         ]);
     }
@@ -525,7 +544,8 @@ class EnvironmentController extends AbstractController
         $imageProcessor = $this->initializeImageProcessor();
         $inputFile = $imageBasePath . 'TestInput/Transparent.gif';
         $imageProcessor->imageMagickConvert_forceFileNameBody = StringUtility::getUniqueId('scale-jpg');
-        $imResult = $imageProcessor->imageMagickConvert($inputFile, 'jpg', '300', '', '-opaque white -background white -flatten', '', [], true);
+        $jpegQuality = MathUtility::forceIntegerInRange($GLOBALS['TYPO3_CONF_VARS']['GFX']['jpg_quality'], 10, 100, 85);
+        $imResult = $imageProcessor->imageMagickConvert($inputFile, 'jpg', '300', '', '-quality ' . $jpegQuality . ' -opaque white -background white -flatten', '', [], true);
         if ($imResult !== null && file_exists($imResult[3])) {
             $result = [
                 'fileExists' => true,
@@ -916,9 +936,9 @@ class EnvironmentController extends AbstractController
                 'connectionName' => $connectionName,
                 'version' => $connection->getServerVersion(),
                 'databaseName' => $connection->getDatabase(),
-                'username' => $connection->getUsername(),
-                'host' => $connection->getHost(),
-                'port' => $connection->getPort(),
+                'username' => $connectionParameters['user'],
+                'host' => $connectionParameters['host'],
+                'port' => $connectionParameters['port'],
                 'socket' => $connectionParameters['unix_socket'] ?? '',
                 'numberOfTables' => count($connection->getSchemaManager()->listTableNames()),
                 'numberOfMappedTables' => 0,

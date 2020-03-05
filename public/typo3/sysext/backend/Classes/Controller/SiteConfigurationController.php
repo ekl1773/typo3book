@@ -42,6 +42,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 use TYPO3\CMS\Frontend\Page\PageRepository;
 use TYPO3Fluid\Fluid\View\ViewInterface;
@@ -87,6 +88,9 @@ class SiteConfigurationController
      */
     public function handleRequest(ServerRequestInterface $request): ResponseInterface
     {
+        // forcing uncached sites will re-initialize `SiteFinder`
+        // which is used later by FormEngine (implicit behavior)
+        $this->siteFinder->getAllSites(false);
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/ContextMenu');
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/Modal');
         $action = $request->getQueryParams()['action'] ?? $request->getParsedBody()['action'] ?? 'overview';
@@ -300,7 +304,11 @@ class SiteConfigurationController
                         break;
 
                     case 'select':
-                        $newSysSiteData[$fieldName] = (int)$fieldValue;
+                        $newSysSiteData[$fieldName] = MathUtility::canBeInterpretedAsInteger($fieldValue) ? (int)$fieldValue : $fieldValue;
+                        break;
+
+                    case 'check':
+                        $newSysSiteData[$fieldName] = (bool)$fieldValue;
                         break;
 
                     default:

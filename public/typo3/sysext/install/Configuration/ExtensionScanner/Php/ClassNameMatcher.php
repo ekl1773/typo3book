@@ -166,11 +166,13 @@ return [
     ],
     'TYPO3\CMS\Sv\AbstractAuthenticationService' => [
         'restFiles' => [
+            'Breaking-81735-GetRidOfSysextsv.rst',
             'Breaking-81536-MoveOfServicesListReportFromSvToReports.rst',
         ],
     ],
     'TYPO3\CMS\Sv\AuthenticationService' => [
         'restFiles' => [
+            'Breaking-81735-GetRidOfSysextsv.rst',
             'Breaking-81536-MoveOfServicesListReportFromSvToReports.rst',
         ],
     ],
@@ -805,7 +807,7 @@ return [
             'Deprecation-85833-ExtensionSaltedpasswordsMergedIntoCoreExtension.rst',
         ],
     ],
-    'TYPO3\CMS\Saltedpasswords\SaltedPasswordsService' => [
+    'TYPO3\CMS\Saltedpasswords\SaltedPasswordService' => [
         'restFiles' => [
             'Deprecation-85833-ExtensionSaltedpasswordsMergedIntoCoreExtension.rst',
         ],

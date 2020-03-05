@@ -33,12 +33,12 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * Usage
  * =====
  *
- * <pre>
- * {namespace formvh=TYPO3\CMS\Form\ViewHelpers}
- * <formvh:render factoryClass="NameOfYourCustomFactoryClass" />
- * </pre>
+ * Default::
  *
- * The factory class must implement {@link TYPO3\CMS\Form\Domain\Factory\FormFactoryInterface}.
+ *    {namespace formvh=TYPO3\CMS\Form\ViewHelpers}
+ *    <formvh:render factoryClass="NameOfYourCustomFactoryClass" />
+ *
+ * The factory class must implement :php:`TYPO3\CMS\Form\Domain\Factory\FormFactoryInterface`.
  *
  * Scope: frontend
  */

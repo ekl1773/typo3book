@@ -1,6 +1,6 @@
 <html xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers" xmlns:core="http://typo3.org/ns/TYPO3/CMS/Core/ViewHelpers" data-namespace-typo3-fluid="true">
 	<f:if condition="{missingClasses}">
-		<f:be.infobox title="{f:translate(key:'msg.invalidTaskClass.infobox.title', arguments: {0: '{missingClasses ->f:count()}'})}" state="2">
+		<f:be.infobox title="{f:translate(key:'msg.invalidTaskClass.infobox.title', arguments: '{0: \'{missingClasses ->f:count()}\'}')}" state="2">
 			<f:format.raw><f:translate key="msg.invalidTaskClass.infobox.message" /></f:format.raw>
 		</f:be.infobox>
 	</f:if>
@@ -61,7 +61,7 @@
 														{taskRecord.classTitle} ({taskRecord.classExtension})
 														<f:if condition="{taskRecord.progress}">
 															<div class="progress">
-																<div class="progress-bar progress-bar-striped" role="progressbar" aria-valuenow="{taskRecord.progress}" aria-valuemin="0" aria-valuemax="100" style="width: {taskRecord.progress}%;">{f:translate(key:'label.checkAll')}:&nbsp;{taskRecord.progress}%</div>
+																<div class="progress-bar progress-bar-striped" role="progressbar" aria-valuenow="{taskRecord.progress}" aria-valuemin="0" aria-valuemax="100" style="width: {taskRecord.progress}%;">{taskRecord.progress}%</div>
 															</div>
 														</f:if>
 														<f:if condition="{taskRecord.additionalInformation}">
@@ -110,10 +110,10 @@
 														</div>
 														<div class="btn-group" role="group">
 															<a class="btn btn-default" data-toggle="tooltip" data-container="body" href="{moduleUri}&CMD=setNextExecutionTime&tx_scheduler[uid]={taskRecord.uid}" title="{f:translate(key:'action.run_task_cron')}">
-																<core:icon identifier="extensions-scheduler-run-task-cron"/>
+																<core:icon identifier="actions-clock"/>
 															</a>
 															<a class="btn btn-default" data-toggle="tooltip" data-container="body" href="{moduleUri}&tx_scheduler[execute][]={taskRecord.uid}" title="{f:translate(key:'action.run_task')}">
-																<core:icon identifier="extensions-scheduler-run-task"/>
+																<core:icon identifier="actions-play"/>
 															</a>
 														</div>
 													</f:else>

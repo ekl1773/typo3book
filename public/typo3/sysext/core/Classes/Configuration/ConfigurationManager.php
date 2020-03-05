@@ -341,12 +341,14 @@ class ConfigurationManager
             } else {
                 throw new \UnexpectedValueException('LocalConfiguration invalid.', 1349272276);
             }
-            if (@is_file($this->getAdditionalConfigurationFileLocation())) {
-                require $this->getAdditionalConfigurationFileLocation();
-            }
         } else {
-            // No LocalConfiguration (yet), load DefaultConfiguration only
+            // No LocalConfiguration (yet), load DefaultConfiguration
             $GLOBALS['TYPO3_CONF_VARS'] = $this->getDefaultConfiguration();
+        }
+
+        // Load AdditionalConfiguration
+        if (@is_file($this->getAdditionalConfigurationFileLocation())) {
+            require $this->getAdditionalConfigurationFileLocation();
         }
     }
 
@@ -370,10 +372,10 @@ class ConfigurationManager
         $configuration = ArrayUtility::sortByKeyRecursive($configuration);
         $result = GeneralUtility::writeFile(
             $localConfigurationFile,
-            '<?php' . LF .
+            "<?php\n" .
                 'return ' .
                     ArrayUtility::arrayExport($configuration) .
-                ';' . LF,
+                ";\n",
             true
         );
 
@@ -394,8 +396,7 @@ class ConfigurationManager
     {
         return GeneralUtility::writeFile(
             $this->getAdditionalConfigurationFileLocation(),
-            '<?php' . LF .
-                implode(LF, $additionalConfigurationLines) . LF
+            "<?php\n" . implode("\n", $additionalConfigurationLines) . "\n"
         );
     }
 

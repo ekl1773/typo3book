@@ -15,63 +15,77 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
  */
 
 /**
- * This view helper generates a <select> dropdown list for the use with a form.
+ * This ViewHelper generates a :html:`<select>` dropdown list for the use with a form.
  *
- * = Basic usage =
+ * Basic usage
+ * ===========
  *
- * The most straightforward way is to supply an associative array as the "options" parameter.
+ * The most straightforward way is to supply an associative array as the ``options`` parameter.
  * The array key is used as option key, and the value is used as human-readable name.
  *
- * <code title="Basic usage">
- * <f:form.select name="paymentOptions" options="{payPal: 'PayPal International Services', visa: 'VISA Card'}" />
- * </code>
+ * Basic usage::
  *
- * = Pre-select a value =
+ *    <f:form.select name="paymentOptions" options="{payPal: 'PayPal International Services', visa: 'VISA Card'}" />
  *
- * To pre-select a value, set "value" to the option key which should be selected.
- * <code title="Default value">
- * <f:form.select name="paymentOptions" options="{payPal: 'PayPal International Services', visa: 'VISA Card'}" value="visa" />
- * </code>
+ * Pre select a value
+ * ------------------
+ *
+ * To pre select a value, set ``value`` to the option key which should be selected.
+ * Default value::
+ *
+ *    <f:form.select name="paymentOptions" options="{payPal: 'PayPal International Services', visa: 'VISA Card'}" value="visa" />
+ *
  * Generates a dropdown box like above, except that "VISA Card" is selected.
  *
- * If the select box is a multi-select box (multiple="1"), then "value" can be an array as well.
+ * If the select box is a multi-select box :html:`multiple="1"`, then "value" can be an array as well.
  *
- * = Custom options and option group rendering =
+ * Custom options and option group rendering
+ * -----------------------------------------
  *
- * Child nodes can be used to create a completely custom set of ``<option>`` and ``<optgroup>`` tags in a way compatible with
- * the HMAC generation. To do so, leave out the ``options`` argument and use child ViewHelpers:
- * <code title="Custom options and optgroup">
- * <f:form.select name="myproperty">
- *     <f:form.select.option value="1">Option one</f:form.select.option>
- *     <f:form.select.option value="2">Option two</f:form.select.option>
- *     <f:form.select.optgroup>
- *         <f:form.select.option value="3">Grouped option one</f:form.select.option>
- *         <f:form.select.option value="4">Grouped option twi</f:form.select.option>
- *     </f:form.select.optgroup>
- * </f:form.select>
- * </code>
- * Note: do not use vanilla ``<option>`` or ``<optgroup>`` tags! They will invalidate the HMAC generation!
+ * Child nodes can be used to create a completely custom set of
+ * :html:`<option>` and :html:`<optgroup>` tags in a way compatible with the
+ * HMAC generation.
+ * To do so, leave out the ``options`` argument and use child ViewHelpers:
  *
- * = Usage on domain objects =
+ * Custom options and optgroup::
  *
- * If you want to output domain objects, you can just pass them as array into the "options" parameter.
- * To define what domain object value should be used as option key, use the "optionValueField" variable. Same goes for optionLabelField.
- * If neither is given, the Identifier (UID/uid) and the __toString() method are tried as fallbacks.
+ *    <f:form.select name="myproperty">
+ *       <f:form.select.option value="1">Option one</f:form.select.option>
+ *       <f:form.select.option value="2">Option two</f:form.select.option>
+ *       <f:form.select.optgroup>
+ *          <f:form.select.option value="3">Grouped option one</f:form.select.option>
+ *          <f:form.select.option value="4">Grouped option twi</f:form.select.option>
+ *       </f:form.select.optgroup>
+ *    </f:form.select>
  *
- * If the optionValueField variable is set, the getter named after that value is used to retrieve the option key.
- * If the optionLabelField variable is set, the getter named after that value is used to retrieve the option value.
+ * .. note::
+ *    Do not use vanilla :html:`<option>` or :html:`<optgroup>` tags!
+ *    They will invalidate the HMAC generation!
  *
- * If the prependOptionLabel variable is set, an option item is added in first position, bearing an empty string or -
- * If provided, the value of the prependOptionValue variable as value.
+ * Usage on domain objects
+ * -----------------------
  *
- * <code title="Domain objects">
- * <f:form.select name="users" options="{userArray}" optionValueField="id" optionLabelField="firstName" />
- * </code>
- * In the above example, the userArray is an array of "User" domain objects, with no array key specified.
+ * If you want to output domain objects, you can just pass them as array into the ``options`` parameter.
+ * To define what domain object value should be used as option key, use the ``optionValueField`` variable. Same goes for ``optionLabelField``.
+ * If neither is given, the Identifier (UID/uid) and the :php:`__toString()` method are tried as fallbacks.
  *
- * So, in the above example, the method $user->getId() is called to retrieve the key, and $user->getFirstName() to retrieve the displayed value of each entry.
+ * If the ``optionValueField`` variable is set, the getter named after that value is used to retrieve the option key.
+ * If the ``optionLabelField`` variable is set, the getter named after that value is used to retrieve the option value.
  *
- * The "value" property now expects a domain object, and tests for object equivalence.
+ * If the ``prependOptionLabel`` variable is set, an option item is added in first position, bearing an empty string or -
+ * if provided, the value of the ``prependOptionValue`` variable as value.
+ *
+ * Domain objects::
+ *
+ *    <f:form.select name="users" options="{userArray}" optionValueField="id" optionLabelField="firstName" />
+ *
+ * In the above example, the ``userArray`` is an array of "User" domain objects, with no array key specified.
+ *
+ * So, in the above example, the method :php:`$user->getId()` is called to
+ * retrieve the key, and :php:`$user->getFirstName()` to retrieve the displayed
+ * value of each entry.
+ *
+ * The ``value`` property now expects a domain object, and tests for object equivalence.
  */
 class SelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFieldViewHelper
 {
@@ -100,7 +114,7 @@ class SelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFie
         $this->registerArgument('optionLabelField', 'string', 'If specified, will call the appropriate getter on each object to determine the label.');
         $this->registerArgument('sortByOptionLabel', 'boolean', 'If true, List will be sorted by label.', false, false);
         $this->registerArgument('selectAllByDefault', 'boolean', 'If specified options are selected if none was set before.', false, false);
-        $this->registerArgument('errorClass', 'string', 'CSS class to set if there are errors for this view helper', false, 'f3-form-error');
+        $this->registerArgument('errorClass', 'string', 'CSS class to set if there are errors for this ViewHelper', false, 'f3-form-error');
         $this->registerArgument('prependOptionLabel', 'string', 'If specified, will provide an option at first position with the specified label.');
         $this->registerArgument('prependOptionValue', 'string', 'If specified, will provide an option at first position with the specified value.');
         $this->registerArgument('multiple', 'boolean', 'If set multiple options may be selected.', false, false);
@@ -125,6 +139,8 @@ class SelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFie
         $this->tag->addAttribute('name', $name);
         $options = $this->getOptions();
 
+        $viewHelperVariableContainer = $this->renderingContext->getViewHelperVariableContainer();
+
         $this->addAdditionalIdentityPropertiesIfNeeded();
         $this->setErrorClassAttribute();
         $content = '';
@@ -139,8 +155,9 @@ class SelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFie
             }
             // save the parent field name so that any child f:form.select.option
             // tag will know to call registerFieldNameForFormTokenGeneration
-            $this->viewHelperVariableContainer->addOrUpdate(
-                static::class,
+            // this is the reason why "self::class" is used instead of static::class (no LSB)
+            $viewHelperVariableContainer->addOrUpdate(
+                self::class,
                 'registerFieldNameForFormTokenGeneration',
                 $name
             );
@@ -148,12 +165,12 @@ class SelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFie
             $this->registerFieldNameForFormTokenGeneration($name);
         }
 
-        $this->viewHelperVariableContainer->addOrUpdate(static::class, 'selectedValue', $this->getSelectedValue());
+        $viewHelperVariableContainer->addOrUpdate(self::class, 'selectedValue', $this->getSelectedValue());
         $prependContent = $this->renderPrependOptionTag();
         $tagContent = $this->renderOptionTags($options);
         $childContent = $this->renderChildren();
-        $this->viewHelperVariableContainer->remove(static::class, 'selectedValue');
-        $this->viewHelperVariableContainer->remove(static::class, 'registerFieldNameForFormTokenGeneration');
+        $viewHelperVariableContainer->remove(self::class, 'selectedValue');
+        $viewHelperVariableContainer->remove(self::class, 'registerFieldNameForFormTokenGeneration');
         if (isset($this->arguments['optionsAfterContent']) && $this->arguments['optionsAfterContent']) {
             $tagContent = $childContent . $tagContent;
         } else {

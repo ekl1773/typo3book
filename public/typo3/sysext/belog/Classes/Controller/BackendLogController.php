@@ -113,6 +113,7 @@ class BackendLogController extends ActionController
             $this->persistConstraintInBeUserData($constraint);
         }
         $constraint->setPageId($pageId);
+        $this->resetConstraintsOnMemoryExhaustionError();
         $this->setStartAndEndTimeFromTimeSelector($constraint);
         $this->forceWorkspaceSelectionIfInWorkspace($constraint);
         $logEntries = $this->logEntryRepository->findByConstraint($constraint);
@@ -170,6 +171,24 @@ class BackendLogController extends ActionController
     protected function persistConstraintInBeUserData(Constraint $constraint)
     {
         $GLOBALS['BE_USER']->pushModuleData(static::class, serialize($constraint));
+    }
+
+    /**
+     * In case the script execution fails, because the user requested too many results
+     * (memory exhaustion in php), reset the constraints in be user settings, so
+     * the belog can be accessed again in the next call.
+     */
+    protected function resetConstraintsOnMemoryExhaustionError()
+    {
+        $reservedMemory = new \SplFixedArray(187500); // 3M
+        register_shutdown_function(function () use (&$reservedMemory) {
+            $reservedMemory = null; // free the reserved memory
+            $error = error_get_last();
+            if (strpos($error['message'], 'Allowed memory size of') !== false) {
+                $constraint = $this->objectManager->get(Constraint::class);
+                $this->persistConstraintInBeUserData($constraint);
+            }
+        });
     }
 
     /**
@@ -337,10 +356,9 @@ class BackendLogController extends ActionController
                 $startTime = mktime(0, 0, 0) - 31 * 3600 * 24;
                 break;
             case self::TIMEFRAME_CUSTOM:
-                $startTime = $constraint->getStartTimestamp();
-                if ($constraint->getEndTimestamp() > $constraint->getStartTimestamp()) {
-                    $endTime = $constraint->getEndTimestamp();
-                } else {
+                $startTime = $constraint->getManualDateStart() ? $constraint->getManualDateStart()->getTimestamp() : 0;
+                $endTime = $constraint->getManualDateStop() ? $constraint->getManualDateStop()->getTimestamp() : 0;
+                if ($endTime <= $startTime) {
                     $endTime = $GLOBALS['EXEC_TIME'];
                 }
                 break;

@@ -42,25 +42,35 @@ class SiteFinder
     protected $mappingRootPageIdToIdentifier = [];
 
     /**
-     * Fetches all existing configurations as Site objects
+     * @var SiteConfiguration
      */
-    public function __construct()
+    protected $siteConfiguration;
+
+    /**
+     * Fetches all existing configurations as Site objects
+     *
+     * @param SiteConfiguration $siteConfiguration
+     */
+    public function __construct(SiteConfiguration $siteConfiguration = null)
     {
-        $reader = GeneralUtility::makeInstance(SiteConfiguration::class, Environment::getConfigPath() . '/sites');
-        $sites = $reader->resolveAllExistingSites();
-        foreach ($sites as $identifier => $site) {
-            $this->sites[$identifier] = $site;
-            $this->mappingRootPageIdToIdentifier[$site->getRootPageId()] = $identifier;
-        }
+        $this->siteConfiguration = $siteConfiguration ?? GeneralUtility::makeInstance(
+            SiteConfiguration::class,
+            Environment::getConfigPath() . '/sites'
+        );
+        $this->fetchAllSites();
     }
 
     /**
      * Return a list of all configured sites
      *
+     * @param bool $useCache
      * @return Site[]
      */
-    public function getAllSites(): array
+    public function getAllSites(bool $useCache = true): array
     {
+        if ($useCache === false) {
+            $this->fetchAllSites($useCache);
+        }
         return $this->sites;
     }
 
@@ -100,10 +110,11 @@ class SiteFinder
      *
      * @param int $pageId
      * @param array $rootLine
+     * @param string|null $mountPointParameter
      * @return Site
      * @throws SiteNotFoundException
      */
-    public function getSiteByPageId(int $pageId, array $rootLine = null): Site
+    public function getSiteByPageId(int $pageId, array $rootLine = null, string $mountPointParameter = null): Site
     {
         if ($pageId === 0) {
             // page uid 0 has no root line. We don't need to ask the root line resolver to know that.
@@ -111,7 +122,7 @@ class SiteFinder
         }
         if (!is_array($rootLine)) {
             try {
-                $rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $pageId)->get();
+                $rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $pageId, $mountPointParameter)->get();
             } catch (PageNotFoundException $e) {
                 // Usually when a page was hidden or disconnected
                 // This could be improved by handing in a Context object and decide whether hidden pages
@@ -125,5 +136,16 @@ class SiteFinder
             }
         }
         throw new SiteNotFoundException('No site found in root line of page ' . $pageId, 1521716622);
+    }
+
+    /**
+     * @param bool $useCache
+     */
+    protected function fetchAllSites(bool $useCache = true): void
+    {
+        $this->sites = $this->siteConfiguration->getAllExistingSites($useCache);
+        foreach ($this->sites as $identifier => $site) {
+            $this->mappingRootPageIdToIdentifier[$site->getRootPageId()] = $identifier;
+        }
     }
 }
