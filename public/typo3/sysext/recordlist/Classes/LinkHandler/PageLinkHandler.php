@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Recordlist\LinkHandler;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Tree\View\ElementBrowserPageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
@@ -114,8 +115,8 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
         $id = (int)$this->linkParts['url']['pageuid'];
         $pageRow = BackendUtility::getRecordWSOL('pages', $id);
 
-        return htmlspecialchars($lang->getLL('page'))
-            . ' \'' . htmlspecialchars(GeneralUtility::fixed_lgd_cs($pageRow['title'], $titleLen)) . '\''
+        return $lang->getLL('page')
+            . ' \'' . GeneralUtility::fixed_lgd_cs($pageRow['title'], $titleLen) . '\''
             . ' (ID: ' . $id . ($this->linkParts['url']['fragment'] ? ', #' . $this->linkParts['url']['fragment'] : '') . ')';
     }
 
@@ -185,9 +186,15 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
                 ->select('*')
                 ->from('tt_content')
                 ->where(
-                    $queryBuilder->expr()->eq(
-                        'pid',
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->expr()->andX(
+                        $queryBuilder->expr()->eq(
+                            'pid',
+                            $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        ),
+                        $queryBuilder->expr()->in(
+                            'sys_language_uid',
+                            $queryBuilder->createNamedParameter([$activePageRecord['sys_language_uid'], -1], Connection::PARAM_INT_ARRAY)
+                        )
                     )
                 )
                 ->orderBy('colPos')
@@ -276,7 +283,7 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
     public function modifyLinkAttributes(array $fieldDefinitions)
     {
         $configuration = $this->linkBrowser->getConfiguration();
-        if (!empty($configuration['pageIdSelector.']['enabled'])) {
+        if (!empty($configuration['pageIdSelector']['enabled'])) {
             $this->linkAttributes[] = 'pageIdSelector';
             $fieldDefinitions['pageIdSelector'] = '
 				<form class="form-horizontal"><div class="form-group form-group-sm">

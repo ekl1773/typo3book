@@ -16,10 +16,13 @@ namespace TYPO3\CMS\Install\Service;
  */
 
 use Symfony\Component\Finder\Finder;
+use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Http\RequestFactory;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Service\Archive\ZipService;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
@@ -43,10 +46,19 @@ class LanguagePackService
      */
     protected $registry;
 
+    /**
+     * @var RequestFactory
+     */
+    protected $requestFactory;
+
+    private const DEFAULT_LANGUAGE_PACK_URL = 'https://typo3.org/fileadmin/ter/';
+    private const NEW_LANGUAGE_PACK_URL = 'https://localize.typo3.org/fileadmin/ter/';
+
     public function __construct()
     {
         $this->locales = GeneralUtility::makeInstance(Locales::class);
         $this->registry = GeneralUtility::makeInstance(Registry::class);
+        $this->requestFactory = GeneralUtility::makeInstance(RequestFactory::class);
     }
 
     /**
@@ -66,7 +78,8 @@ class LanguagePackService
      */
     public function getActiveLanguages(): array
     {
-        return $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lang']['availableLanguages'] ?? [];
+        $availableLanguages = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lang']['availableLanguages'] ?? [];
+        return array_filter($availableLanguages);
     }
 
     /**
@@ -171,19 +184,22 @@ class LanguagePackService
      */
     public function updateMirrorBaseUrl(): string
     {
+        $repositoryUrl = 'https://repositories.typo3.org/mirrors.xml.gz';
         $downloadBaseUrl = false;
         try {
-            $xmlContent = GeneralUtility::getUrl('https://repositories.typo3.org/mirrors.xml.gz');
-            $xmlContent = GeneralUtility::xml2array(@gzdecode($xmlContent));
-            if (!empty($xmlContent['mirror']['host']) && !empty($xmlContent['mirror']['path'])) {
-                $downloadBaseUrl = 'https://' . $xmlContent['mirror']['host'] . $xmlContent['mirror']['path'];
+            $response = $this->requestFactory->request($repositoryUrl);
+            if ($response->getStatusCode() === 200) {
+                $xmlContent = @gzdecode($response->getBody()->getContents());
+                if (!empty($xmlContent['mirror']['host']) && !empty($xmlContent['mirror']['path'])) {
+                    $downloadBaseUrl = 'https://' . $xmlContent['mirror']['host'] . $xmlContent['mirror']['path'];
+                }
             }
         } catch (\Exception $e) {
             // Catch generic exception, fallback handled below
         }
         if (empty($downloadBaseUrl)) {
             // Hard coded fallback if something went wrong fetching & parsing mirror list
-            $downloadBaseUrl = 'https://typo3.org/fileadmin/ter/';
+            $downloadBaseUrl = self::DEFAULT_LANGUAGE_PACK_URL;
         }
         $this->registry->set('languagePacks', 'baseUrl', $downloadBaseUrl);
         return $downloadBaseUrl;
@@ -222,6 +238,12 @@ class LanguagePackService
         if (empty($languagePackBaseUrl)) {
             throw new \RuntimeException('Language pack baseUrl not found', 1520169691);
         }
+
+        if ($languagePackBaseUrl === self::DEFAULT_LANGUAGE_PACK_URL
+            && GeneralUtility::makeInstance(Features::class)->isFeatureEnabled('newTranslationServer')) {
+            $languagePackBaseUrl = self::NEW_LANGUAGE_PACK_URL;
+        }
+
         // Allow to modify the base url on the fly by calling a signal
         $signalSlotDispatcher = GeneralUtility::makeInstance(Dispatcher::class);
         $signalSlotDispatcher->dispatch(
@@ -255,19 +277,22 @@ class LanguagePackService
 
         $operationResult = false;
         try {
-            $languagePackContent = GeneralUtility::getUrl($languagePackBaseUrl . $packageUrl);
-            if (!empty($languagePackContent)) {
-                $operationResult = true;
-                if ($packExists) {
-                    $operationResult = GeneralUtility::rmdir($absoluteExtractionPath, true);
-                }
-                if ($operationResult) {
-                    GeneralUtility::mkdir_deep(Environment::getVarPath() . '/transient/');
-                    $operationResult = GeneralUtility::writeFileToTypo3tempDir($absolutePathToZipFile, $languagePackContent) === null;
-                }
-                $this->unzipTranslationFile($absolutePathToZipFile, $absoluteLanguagePath);
-                if ($operationResult) {
-                    $operationResult = unlink($absolutePathToZipFile);
+            $response = $this->requestFactory->request($languagePackBaseUrl . $packageUrl);
+            if ($response->getStatusCode() === 200) {
+                $languagePackContent = $response->getBody()->getContents();
+                if (!empty($languagePackContent)) {
+                    $operationResult = true;
+                    if ($packExists) {
+                        $operationResult = GeneralUtility::rmdir($absoluteExtractionPath, true);
+                    }
+                    if ($operationResult) {
+                        GeneralUtility::mkdir_deep(Environment::getVarPath() . '/transient/');
+                        $operationResult = GeneralUtility::writeFileToTypo3tempDir($absolutePathToZipFile, $languagePackContent) === null;
+                    }
+                    $this->unzipTranslationFile($absolutePathToZipFile, $absoluteLanguagePath);
+                    if ($operationResult) {
+                        $operationResult = unlink($absolutePathToZipFile);
+                    }
                 }
             }
         } catch (\Exception $e) {
@@ -319,43 +344,17 @@ class LanguagePackService
      *
      * @param string $file path to zip file
      * @param string $path path to extract to
-     * @throws \RuntimeException
      */
     protected function unzipTranslationFile(string $file, string $path)
     {
-        $zip = zip_open($file);
-        if (is_resource($zip)) {
-            if (!is_dir($path)) {
-                GeneralUtility::mkdir_deep($path);
-            }
-            while (($zipEntry = zip_read($zip)) !== false) {
-                $zipEntryName = zip_entry_name($zipEntry);
-                if (strpos($zipEntryName, '/') !== false) {
-                    $zipEntryPathSegments = explode('/', $zipEntryName);
-                    $fileName = array_pop($zipEntryPathSegments);
-                    // It is a folder, because the last segment is empty, let's create it
-                    if (empty($fileName)) {
-                        GeneralUtility::mkdir_deep($path . implode('/', $zipEntryPathSegments));
-                    } else {
-                        $absoluteTargetPath = GeneralUtility::getFileAbsFileName($path . implode('/', $zipEntryPathSegments) . '/' . $fileName);
-                        if (trim($absoluteTargetPath) !== '') {
-                            $return = GeneralUtility::writeFile(
-                                $absoluteTargetPath,
-                                zip_entry_read($zipEntry, zip_entry_filesize($zipEntry))
-                            );
-                            if ($return === false) {
-                                throw new \RuntimeException('Could not write file ' . $zipEntryName, 1520170845);
-                            }
-                        } else {
-                            throw new \RuntimeException('Could not write file ' . $zipEntryName, 1520170846);
-                        }
-                    }
-                } else {
-                    throw new \RuntimeException('Extension directory missing in zip file!', 1520170847);
-                }
-            }
-        } else {
-            throw new \RuntimeException('Unable to open zip file ' . $file, 1520170848);
+        if (!is_dir($path)) {
+            GeneralUtility::mkdir_deep($path);
         }
+
+        $zipService = GeneralUtility::makeInstance(ZipService::class);
+        if ($zipService->verify($file)) {
+            $zipService->extract($file, $path);
+        }
+        GeneralUtility::fixPermissions($path, true);
     }
 }

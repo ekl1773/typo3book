@@ -19,6 +19,7 @@ use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
  * Generation of TCEform elements of the type "check"
@@ -181,7 +182,8 @@ class CheckboxElement extends AbstractFormElement
             $numberOfItems,
             implode('', $additionalInformation['fieldChangeFunc'])
         );
-        $checkboxId = $additionalInformation['itemFormElID'] . '_' . $itemCounter;
+        $uniqueId = StringUtility::getUniqueId('_');
+        $checkboxId = $additionalInformation['itemFormElID'] . '_' . $itemCounter . $uniqueId;
 
         $iconIdentifierChecked = !empty($config['items'][$itemCounter]['iconIdentifierChecked']) ? $config['items'][$itemCounter]['iconIdentifierChecked'] : 'actions-check';
         if (!$this->iconRegistry->isRegistered($iconIdentifierChecked)) {
@@ -201,7 +203,7 @@ class CheckboxElement extends AbstractFormElement
                     value="1"
                     data-formengine-input-name="' . htmlspecialchars($additionalInformation['itemFormElName']) . '"
                     ' . $checkboxParameters . '
-                    ' . (!$disabled ?: ' disabled="disabled"') . '
+                    ' . ($disabled ? ' disabled="disabled"' : '') . '
                     id="' . $checkboxId . '" />
                 <label class="checkbox-label" for="' . $checkboxId . '">
                     <span class="checkbox-label-icon">

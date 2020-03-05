@@ -27,6 +27,7 @@ use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
 
 /**
@@ -100,17 +101,24 @@ class TcaInline extends AbstractDatabaseRecordProvider implements FormDataProvid
             if ($table === 'pages') {
                 $liveVersionId = BackendUtility::getLiveVersionIdOfRecord('pages', $row['uid']);
                 $pid = $liveVersionId === null ? $row['uid'] : $liveVersionId;
-            } elseif ($row['pid'] < 0) {
+            } elseif (($row['pid'] ?? 0) < 0) {
                 $prevRec = BackendUtility::getRecord($table, abs($row['pid']));
                 $pid = $prevRec['pid'];
             } else {
-                $pid = $row['pid'];
+                $pid = $row['pid'] ?? 0;
             }
-            $pageRecord = BackendUtility::getRecord('pages', $pid);
-            if ((int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']] > 0) {
-                $pid = (int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']];
+            if (MathUtility::canBeInterpretedAsInteger($pid)) {
+                $pageRecord = BackendUtility::getRecord('pages', (int)$pid);
+                if ((int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']] > 0) {
+                    $pid = (int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']];
+                }
+            } elseif (strpos($pid, 'NEW') !== 0) {
+                throw new \RuntimeException(
+                    'inlineFirstPid should either be an integer or a "NEW..." string',
+                    1521220142
+                );
             }
-            $result['inlineFirstPid'] = (int)$pid;
+            $result['inlineFirstPid'] = $pid;
         }
         return $result;
     }
@@ -123,7 +131,7 @@ class TcaInline extends AbstractDatabaseRecordProvider implements FormDataProvid
      * @param string $fieldName Current handle field name
      * @return array Modified item array
      */
-    protected function resolveRelatedRecords(array $result, $fieldName)
+    protected function resolveRelatedRecordsOverlays(array $result, $fieldName)
     {
         $childTableName = $result['processedTca']['columns'][$fieldName]['config']['foreign_table'];
 
@@ -137,6 +145,7 @@ class TcaInline extends AbstractDatabaseRecordProvider implements FormDataProvid
             );
         }
         $result['databaseRow'][$fieldName] = implode(',', $connectedUidsOfLocalizedOverlay);
+        $connectedUidsOfLocalizedOverlay = $this->getWorkspacedUids($connectedUidsOfLocalizedOverlay, $childTableName);
         if ($result['inlineCompileExistingChildren']) {
             $tableNameWithDefaultRecords = $result['tableName'];
             $connectedUidsOfDefaultLanguageRecord = $this->resolveConnectedRecordUids(
@@ -145,6 +154,7 @@ class TcaInline extends AbstractDatabaseRecordProvider implements FormDataProvid
                 $result['defaultLanguageRow']['uid'],
                 $result['defaultLanguageRow'][$fieldName]
             );
+            $connectedUidsOfDefaultLanguageRecord = $this->getWorkspacedUids($connectedUidsOfDefaultLanguageRecord, $childTableName);
 
             $showPossible = $result['processedTca']['columns'][$fieldName]['config']['appearance']['showPossibleLocalizationRecords'];
 
@@ -199,6 +209,40 @@ class TcaInline extends AbstractDatabaseRecordProvider implements FormDataProvid
             }
         }
 
+        return $result;
+    }
+
+    /**
+     * Substitute the value in databaseRow of this inline field with an array
+     * that contains the databaseRows of currently connected records and some meta information.
+     *
+     * @param array $result Result array
+     * @param string $fieldName Current handle field name
+     * @return array Modified item array
+     */
+    protected function resolveRelatedRecords(array $result, $fieldName)
+    {
+        if ($result['defaultLanguageRow'] !== null) {
+            return $this->resolveRelatedRecordsOverlays($result, $fieldName);
+        }
+
+        $childTableName = $result['processedTca']['columns'][$fieldName]['config']['foreign_table'];
+        $connectedUidsOfDefaultLanguageRecord = $this->resolveConnectedRecordUids(
+            $result['processedTca']['columns'][$fieldName]['config'],
+            $result['tableName'],
+            $result['databaseRow']['uid'],
+            $result['databaseRow'][$fieldName]
+        );
+        $result['databaseRow'][$fieldName] = implode(',', $connectedUidsOfDefaultLanguageRecord);
+
+        $connectedUidsOfDefaultLanguageRecord = $this->getWorkspacedUids($connectedUidsOfDefaultLanguageRecord, $childTableName);
+
+        if ($result['inlineCompileExistingChildren']) {
+            foreach ($connectedUidsOfDefaultLanguageRecord as $uid) {
+                $compiledChild = $this->compileChild($result, $fieldName, $uid);
+                $result['processedTca']['columns'][$fieldName]['children'][] = $compiledChild;
+            }
+        }
         return $result;
     }
 

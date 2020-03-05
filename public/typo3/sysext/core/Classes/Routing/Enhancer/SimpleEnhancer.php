@@ -33,7 +33,7 @@ use TYPO3\CMS\Core\Utility\ArrayUtility;
  *       category_id: 'category/id'
  *       scope_id: 'scope/id'
  */
-class SimpleEnhancer extends AbstractEnhancer implements RoutingEnhancerInterface, ResultingInterface
+class SimpleEnhancer extends AbstractEnhancer implements RoutingEnhancerInterface, InflatableEnhancerInterface, ResultingInterface
 {
     /**
      * @var array
@@ -69,9 +69,6 @@ class SimpleEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
             ->inflateNamespaceParameters($dynamicCandidates, '');
         // static arguments, that don't appear in dynamic arguments
         $staticArguments = ArrayUtility::arrayDiffAssocRecursive($routeArguments, $dynamicArguments);
-        // inflate remaining query arguments that could not be applied to the route
-        $remainingQueryParameters = $variableProcessor
-            ->inflateNamespaceParameters($remainingQueryParameters, '');
 
         $page = $route->getOption('_page');
         $pageId = (int)($page['l10n_parent'] > 0 ? $page['l10n_parent'] : $page['uid']);
@@ -102,14 +99,15 @@ class SimpleEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
         $arguments = $configuration['_arguments'] ?? [];
         unset($configuration['_arguments']);
 
+        $variableProcessor = $this->getVariableProcessor();
         $routePath = $this->modifyRoutePath($configuration['routePath']);
-        $routePath = $this->getVariableProcessor()->deflateRoutePath($routePath, null, $arguments);
+        $routePath = $variableProcessor->deflateRoutePath($routePath, null, $arguments);
         $variant = clone $defaultPageRoute;
         $variant->setPath(rtrim($variant->getPath(), '/') . '/' . ltrim($routePath, '/'));
-        $variant->setDefaults($configuration['defaults'] ?? []);
-        $variant->setRequirements($configuration['requirements'] ?? []);
+        $variant->setDefaults($variableProcessor->deflateKeys($this->configuration['defaults'] ?? [], null, $arguments));
         $variant->addOptions(['_enhancer' => $this, '_arguments' => $arguments]);
         $this->applyRouteAspects($variant, $this->aspects ?? []);
+        $this->applyRequirements($variant, $this->configuration['requirements'] ?? []);
         return $variant;
     }
 
@@ -131,5 +129,11 @@ class SimpleEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
         }
         $variant->addOptions(['deflatedParameters' => $deflatedParameters]);
         $collection->add('enhancer_' . spl_object_hash($variant), $variant);
+    }
+
+    public function inflateParameters(array $parameters, array $internals = []): array
+    {
+        return $this->getVariableProcessor()
+            ->inflateNamespaceParameters($parameters, '');
     }
 }

@@ -15,34 +15,49 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
  */
 
 /**
- * View Helper which creates a simple radio button (<input type="radio">).
+ * ViewHelper which creates a simple radio button :html:`<input type="radio">`.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Example">
- * <f:form.radio name="myRadioButton" value="someValue" />
- * </code>
- * <output>
- * <input type="radio" name="myRadioButton" value="someValue" />
- * </output>
+ * Simple
+ * ------
  *
- * <code title="Preselect">
- * <f:form.radio name="myRadioButton" value="someValue" checked="{object.value} == 5" />
- * </code>
- * <output>
- * <input type="radio" name="myRadioButton" value="someValue" checked="checked" />
- * (depending on $object)
- * </output>
+ * ::
  *
- * <code title="Bind to object property">
- * <f:form.radio property="newsletter" value="1" /> yes
- * <f:form.radio property="newsletter" value="0" /> no
- * </code>
- * <output>
- * <input type="radio" name="user[newsletter]" value="1" checked="checked" /> yes
- * <input type="radio" name="user[newsletter]" value="0" /> no
- * (depending on property "newsletter")
- * </output>
+ *    <f:form.radio name="myRadioButton" value="someValue" />
+ *
+ * Output::
+ *
+ *    <input type="radio" name="myRadioButton" value="someValue" />
+ *
+ * Preselect
+ * ---------
+ *
+ * ::
+ *
+ *    <f:form.radio name="myRadioButton" value="someValue" checked="{object.value} == 5" />
+ *
+ * Output::
+ *
+ *    <input type="radio" name="myRadioButton" value="someValue" checked="checked" />
+ *
+ * Depending on bound ``object`` to surrounding :ref:`f:form <typo3-fluid-form>`.
+ *
+ * Bind to object property
+ * -----------------------
+ *
+ * ::
+ *
+ *    <f:form.radio property="newsletter" value="1" /> yes
+ *    <f:form.radio property="newsletter" value="0" /> no
+ *
+ * Output::
+ *
+ *    <input type="radio" name="user[newsletter]" value="1" checked="checked" /> yes
+ *    <input type="radio" name="user[newsletter]" value="0" /> no
+ *
+ * Depending on property ``newsletter``.
  */
 class RadioViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFieldViewHelper
 {
@@ -60,7 +75,7 @@ class RadioViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFiel
         $this->registerArgument(
             'errorClass',
             'string',
-            'CSS class to set if there are errors for this view helper',
+            'CSS class to set if there are errors for this ViewHelper',
             false,
             'f3-form-error'
         );

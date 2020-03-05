@@ -214,11 +214,12 @@ class ConfigurationService implements SingletonInterface
      * * formElementsDefinition.<formElementType>.formEditor.predefinedDefaults.<propertyPath> = "default value"
      *
      * @param ValidationDto $dto
+     * @param bool $translated
      * @return mixed
      * @throws PropertyException
      * @internal
      */
-    public function getFormElementPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto)
+    public function getFormElementPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto, bool $translated = true)
     {
         if (!$this->isFormElementPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)) {
             throw new PropertyException(
@@ -234,7 +235,9 @@ class ConfigurationService implements SingletonInterface
         $formDefinitionValidationConfiguration = $this->buildFormDefinitionValidationConfigurationFromFormEditorSetup(
             $dto->getPrototypeName()
         );
-        return $formDefinitionValidationConfiguration['formElements'][$dto->getFormElementType()]['predefinedDefaults'][$dto->getPropertyPath()];
+
+        $property = $translated ? 'predefinedDefaults' : 'untranslatedPredefinedDefaults';
+        return $formDefinitionValidationConfiguration['formElements'][$dto->getFormElementType()][$property][$dto->getPropertyPath()];
     }
 
     /**
@@ -265,11 +268,12 @@ class ConfigurationService implements SingletonInterface
      * * <validatorsDefinition|finishersDefinition>.<index>.formEditor.predefinedDefaults.<propertyPath> = "default value"
      *
      * @param ValidationDto $dto
+     * @param bool $translated
      * @return mixed
      * @throws PropertyException
      * @internal
      */
-    public function getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto)
+    public function getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto, bool $translated = true)
     {
         if (!$this->isPropertyCollectionPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)) {
             throw new PropertyException(
@@ -286,7 +290,9 @@ class ConfigurationService implements SingletonInterface
         $formDefinitionValidationConfiguration = $this->buildFormDefinitionValidationConfigurationFromFormEditorSetup(
             $dto->getPrototypeName()
         );
-        return $formDefinitionValidationConfiguration['collections'][$dto->getPropertyCollectionName()][$dto->getPropertyCollectionElementIdentifier()]['predefinedDefaults'][$dto->getPropertyPath()];
+
+        $property = $translated ? 'predefinedDefaults' : 'untranslatedPredefinedDefaults';
+        return $formDefinitionValidationConfiguration['collections'][$dto->getPropertyCollectionName()][$dto->getPropertyCollectionElementIdentifier()][$property][$dto->getPropertyPath()];
     }
 
     /**
@@ -351,6 +357,27 @@ class ConfigurationService implements SingletonInterface
     }
 
     /**
+     * @param string $key
+     * @param string $prototypeName
+     * @return array
+     */
+    public function getAllBackendTranslationsForTranslationKey(string $key, string $prototypeName): array
+    {
+        $prototypeConfiguration = $this->getPrototypeConfiguration($prototypeName);
+
+        $translationFiles = $prototypeConfiguration['formEditor']['translationFile'] ?? [];
+        if (is_string($translationFiles)) {
+            $translationFiles = [$translationFiles];
+        }
+
+        return $this->getTranslationService()->translateToAllBackendLanguages(
+            $key,
+            [],
+            $translationFiles
+        );
+    }
+
+    /**
      * Collect all the form editor configurations which are needed to check if a
      * form definition property can be written or not.
      *
@@ -373,63 +400,54 @@ class ConfigurationService implements SingletonInterface
                     '^formElementsDefinition\.(.*)\.formEditor\.editors\.([\d]+)\.(propertyPath|.*\.propertyPath)$',
                     GeneralUtility::makeInstance(PropertyPathsExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'formElementAdditionalElementPropertyPaths',
                     '^formElementsDefinition\.(.*)\.formEditor\.editors\.([\d]+)\.additionalElementPropertyPaths\.([\d]+)',
                     GeneralUtility::makeInstance(AdditionalElementPropertyPathsExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'formElementRelativeMultiValueProperties',
                     '^formElementsDefinition\.(.*)\.formEditor\.editors\.([\d]+)\.templateName$',
                     GeneralUtility::makeInstance(MultiValuePropertiesExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'formElementPredefinedDefaults',
                     '^formElementsDefinition\.(.*)\.formEditor\.predefinedDefaults\.(.+)$',
                     GeneralUtility::makeInstance(PredefinedDefaultsExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'formElementCreatable',
                     '^formElementsDefinition\.(.*)\.formEditor.group$',
                     GeneralUtility::makeInstance(IsCreatableFormElementExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'propertyCollectionCreatable',
                     '^formElementsDefinition\.(.*)\.formEditor\.editors\.([\d]+)\.templateName$',
                     GeneralUtility::makeInstance(IsCreatablePropertyCollectionElementExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'propertyCollectionPropertyPaths',
                     '^formElementsDefinition\.(.*)\.formEditor\.propertyCollections\.(finishers|validators)\.([\d]+)\.editors\.([\d]+)\.(propertyPath|.*\.propertyPath)$',
                     GeneralUtility::makeInstance(CollectionPropertyPathsExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'propertyCollectionAdditionalElementPropertyPaths',
                     '^formElementsDefinition\.(.*)\.formEditor\.propertyCollections\.(finishers|validators)\.([\d]+)\.editors\.([\d]+)\.additionalElementPropertyPaths\.([\d]+)',
                     GeneralUtility::makeInstance(AdditionalElementPropertyPathsExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'propertyCollectionRelativeMultiValueProperties',
                     '^formElementsDefinition\.(.*)\.formEditor\.propertyCollections\.(finishers|validators)\.([\d]+)\.editors\.([\d]+)\.templateName$',
                     GeneralUtility::makeInstance(CollectionMultiValuePropertiesExtractor::class, $extractorDto)
                 ),
-
                 GeneralUtility::makeInstance(
                     ArrayProcessing::class,
                     'propertyCollectionPredefinedDefaults',
@@ -635,6 +653,7 @@ class ConfigurationService implements SingletonInterface
             if (!isset($formElement['predefinedDefaults'])) {
                 continue;
             }
+            $formElement['untranslatedPredefinedDefaults'] = $formElement['predefinedDefaults'];
             $formElement['predefinedDefaults'] = $this->getTranslationService()->translateValuesRecursive(
                 $formElement['predefinedDefaults'],
                 $prototypeConfiguration['formEditor']['translationFile'] ?? null

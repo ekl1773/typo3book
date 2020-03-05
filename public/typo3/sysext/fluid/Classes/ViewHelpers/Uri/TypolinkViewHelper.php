@@ -22,28 +22,38 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A ViewHelper to create uris from fields supported by the link wizard
+ * A ViewHelper to create uris from fields supported by the link wizard.
  *
- * == Example ==
+ * Example
+ * =======
  *
- * {link} contains "19 - - - &X=y"
- * Please note that due to the nature of typolink you have to provide a
- * full set of parameters if you use the parameter only. Target, class
- * and title will be discarded.
+ * ``{link}`` contains ``19 - - - &X=y``
  *
- * <code title="minimal usage">
- * <f:uri.typolink parameter="{link}" />
- * <output>
- * index.php?id=19&X=y
- * </output>
- * </code>
+ * Please note that due to the nature of typolink you have to provide a full
+ * set of parameters.
+ * If you use the parameter only, then target, class and title will be discarded.
  *
- * <code title="Full parameter usage">
- * <f:uri.typolink parameter="{link}" additionalParams="&u=b" useCacheHash="true" />
- * </code>
- * <output>
- * index.php?id=19&X=y&u=b
- * </output>
+ * Minimal usage
+ * -------------
+ *
+ * ::
+ *
+ *    <f:uri.typolink parameter="{link}" />
+ *
+ * ``/page/path/name.html?X=y``
+ *
+ * Depending on routing and page path configuration.
+ *
+ * Full parameter usage
+ * --------------------
+ *
+ * ::
+ *
+ *    <f:uri.typolink parameter="{link}" additionalParams="&u=b" useCacheHash="true" />
+ *
+ * ``/page/path/name.html?X=y&u=b``
+ *
+ * Depending on routing and page path configuration.
  */
 class TypolinkViewHelper extends AbstractViewHelper
 {

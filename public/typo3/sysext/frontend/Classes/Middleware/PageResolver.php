@@ -88,7 +88,15 @@ class PageResolver implements MiddlewareInterface
             }
 
             $requestId = (string)($request->getQueryParams()['id'] ?? '');
-            if (!empty($requestId) && !empty($page = $this->resolvePageId($requestId))) {
+            if (!empty($requestId)) {
+                $page = $this->resolvePageId($requestId);
+                if ($page === null) {
+                    return GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                        $request,
+                        'The requested page does not exist',
+                        ['code' => PageAccessFailureReasons::PAGE_NOT_FOUND]
+                    );
+                }
                 // Legacy URIs (?id=12345) takes precedence, not matter if a route is given
                 $pageArguments = new PageArguments(
                     (int)($page['l10n_parent'] ?: $page['uid']),
@@ -119,6 +127,7 @@ class PageResolver implements MiddlewareInterface
 
             $this->controller->id = $pageArguments->getPageId();
             $this->controller->type = $pageArguments->getPageType() ?? $this->controller->type;
+            $this->controller->MP = $pageArguments->getArguments()['MP'] ?? $this->controller->MP;
             $request = $request->withAttribute('routing', $pageArguments);
             // stop in case arguments are dirty (=defined twice in route and GET query parameters)
             if ($pageArguments->areDirty()) {

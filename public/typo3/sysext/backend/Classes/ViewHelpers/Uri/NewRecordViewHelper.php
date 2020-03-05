@@ -3,6 +3,19 @@ declare(strict_types = 1);
 
 namespace TYPO3\CMS\Backend\ViewHelpers\Uri;
 
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
@@ -15,7 +28,7 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  *
  * The table argument is mandatory, it decides what record is to be created.
  *
- * The pid argument will put the new record on this page, if 0 given it will
+ * The pid argument will put the new record on this page, if ``0`` given it will
  * be placed to the root page.
  *
  * The uid argument accepts only negative values. If this is given, the new
@@ -26,30 +39,28 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * An exception will be thrown, if both uid and pid are given.
  * An exception will be thrown, if the uid argument is not a negative integer.
  *
- * To edit records, use the editRecordViewHelper
+ * To edit records, use the :ref:`<be:uri.editRecord> <typo3-backend-uri-editrecord>`.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Uri to create a new record of a_table after record 17 on the same pid">
- * <be:uri.newRecord table="a_table" returnUrl="foo/bar" uid="-17"/>
- * </code>
- * <output>
- *  /typo3/index.php?route=/record/edit&edit[a_table][-17]=new&returnUrl=foo/bar
- * </output>
+ * Uri to create a new record of a_table after record 17 on the same pid::
  *
- * <code title="Uri to create a new record of a_table on root page">
- * <be:uri.newRecord table="a_table" returnUrl="foo/bar""/>
- * </code>
- * <output>
- *  /typo3/index.php?route=/record/edit&edit[a_table][]=new&returnUrl=foo/bar
- * </output>
+ *    <be:uri.newRecord table="a_table" returnUrl="foo/bar" uid="-17"/>
  *
- * <code title="Uri to create a new record of a_table on page 17">
- * <be:uri.newRecord table="a_table" returnUrl="foo/bar" pid="17"/>
- * </code>
- * <output>
- *  /typo3/index.php?route=/record/edit&edit[a_table][-17]=new&returnUrl=foo/bar
- * </output>
+ * ``/typo3/index.php?route=/record/edit&edit[a_table][-17]=new&returnUrl=foo/bar``
+ *
+ * Uri to create a new record of a_table on root page::
+ *
+ *    <be:uri.newRecord table="a_table" returnUrl="foo/bar""/>
+ *
+ * ``/typo3/index.php?route=/record/edit&edit[a_table][]=new&returnUrl=foo/bar``
+ *
+ * Uri to create a new record of a_table on page 17::
+ *
+ *    <be:uri.newRecord table="a_table" returnUrl="foo/bar" pid="17"/>
+ *
+ * ``/typo3/index.php?route=/record/edit&edit[a_table][-17]=new&returnUrl=foo/bar``
  */
 class NewRecordViewHelper extends AbstractTagBasedViewHelper
 {

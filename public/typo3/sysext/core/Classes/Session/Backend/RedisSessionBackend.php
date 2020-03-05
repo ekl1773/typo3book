@@ -148,7 +148,7 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
     {
         $this->initializeConnection();
 
-        return $this->redis->delete($this->getSessionKeyName($sessionId)) >= 1;
+        return $this->redis->del($this->getSessionKeyName($sessionId)) >= 1;
     }
 
     /**
@@ -224,11 +224,11 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
         foreach ($this->getAll() as $sessionRecord) {
             if ($sessionRecord['ses_anonymous']) {
                 if ($maximumAnonymousLifetime > 0 && ($sessionRecord['ses_tstamp'] + $maximumAnonymousLifetime) < $GLOBALS['EXEC_TIME']) {
-                    $this->redis->delete($this->getSessionKeyName($sessionRecord['ses_id']));
+                    $this->redis->del($this->getSessionKeyName($sessionRecord['ses_id']));
                 }
             } else {
                 if (($sessionRecord['ses_tstamp'] + $maximumLifetime) < $GLOBALS['EXEC_TIME']) {
-                    $this->redis->delete($this->getSessionKeyName($sessionRecord['ses_id']));
+                    $this->redis->del($this->getSessionKeyName($sessionRecord['ses_id']));
                 }
             }
         }
@@ -248,7 +248,9 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
         try {
             $this->connected = $this->redis->pconnect(
                 $this->configuration['hostname'] ?? '127.0.0.1',
-                $this->configuration['port'] ?? 6379
+                $this->configuration['port'] ?? 6379,
+                0.0,
+                $this->identifier
             );
         } catch (\RedisException $e) {
             $this->logger->alert('Could not connect to redis server.', ['exception' => $e]);
@@ -303,7 +305,7 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
             }
         }
 
-        $encodedSessions = $this->redis->getMultiple($keys);
+        $encodedSessions = $this->redis->mGet($keys);
         if (!is_array($encodedSessions)) {
             return [];
         }

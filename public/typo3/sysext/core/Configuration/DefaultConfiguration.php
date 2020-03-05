@@ -76,6 +76,8 @@ return [
             'unifiedPageTranslationHandling' => false,
             'TypoScript.strictSyntax' => true,
             'simplifiedControllerActionDispatching' => false,
+            'security.frontend.keepSessionDataOnLogout' => false,
+            'newTranslationServer' => false,
         ],
         'createGroup' => '',
         'sitename' => 'TYPO3',
@@ -1075,7 +1077,7 @@ return [
     'EXT' => [ // Options related to the Extension Management
         'allowGlobalInstall' => false,
         'allowLocalInstall' => true,
-        'excludeForPackaging' => '(?:\\..*(?!htaccess)|.*~|.*\\.swp|.*\\.bak|\\.sass-cache|node_modules|bower_components)',
+        'excludeForPackaging' => '(?:\\.(?!htaccess$).*|.*~|.*\\.swp|.*\\.bak|node_modules|bower_components)',
         'runtimeActivatedPackages' => [],
     ],
     'BE' => [
@@ -1098,6 +1100,7 @@ return [
         'enabledBeUserIPLock' => true,
         'cookieDomain' => '',
         'cookieName' => 'be_typo_user',
+        'cookieSameSite' => 'strict',
         'loginSecurityLevel' => '',
         'showRefreshLoginPopup' => false,
         'adminOnly' => 0,
@@ -1283,6 +1286,7 @@ return [
         'permalogin' => 0,
         'cookieDomain' => '',
         'cookieName' => 'fe_typo_user',
+        'cookieSameSite' => 'lax',
         'defaultUserTSconfig' => '',
         'defaultTypoScript_constants' => '',
         'defaultTypoScript_constants.' => [], // Lines of TS to include after a static template with the uid = the index in the array (Constants)

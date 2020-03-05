@@ -107,7 +107,7 @@ HTML;
                             Once you have found a solution to the problem, help others by contributing to the wiki page.
                         </p>
                         <p>
-                            <a href="$wikiLink" target="_blank">Find a solution for this exception in the TYPO3 wiki.</a>
+                            <a href="$wikiLink" target="_blank" rel="noopener noreferrer">Find a solution for this exception in the TYPO3 wiki.</a>
                         </p>
                     </div>
                 </div>
@@ -201,16 +201,17 @@ HTML;
                 background-color: #eaeaea;
                 color: #212121;
                 font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-                font-size: 1rem;
                 font-weight: 400;
                 height: 100vh;
                 line-height: 1.5;
                 overflow-x: hidden;
                 overflow-y: scroll;
-                position: absolute;
                 text-align: left;
                 top: 0;
-                width: 100vw;
+            }
+
+            .panel-collapse .exception-page {
+                height: 100%;
             }
 
             .exception-page a {
@@ -294,6 +295,10 @@ HTML;
                 padding: 0 30px;
             }
 
+            .panel-collapse .exception-page .container {
+                width: 100%;
+            }
+
             .exception-page .exception-illustration {
                 width: 3em;
                 height: 3em;
@@ -356,6 +361,10 @@ HTML;
                 padding: 1.5rem;
             }
 
+            .exception-page .trace-file-path {
+                word-break: break-all;
+            }
+
             .exception-page .trace-message {
                 margin-bottom: 0;
             }
@@ -400,12 +409,12 @@ STYLESHEET;
 
             if (isset($step['function'])) {
                 $content .= '<div class="trace-call">' . sprintf(
-                        'at <span class="trace-class">%s</span><span class="trace-type">%s</span><span class="trace-method">%s</span>(<span class="trace-arguments">%s</span>)',
-                        $step['class'] ?? '',
-                        $step['type'],
-                        $step['function'],
-                        $this->formatArgs($args)
-                    ) . '</div>';
+                    'at <span class="trace-class">%s</span><span class="trace-type">%s</span><span class="trace-method">%s</span>(<span class="trace-arguments">%s</span>)',
+                    $step['class'] ?? '',
+                    $step['type'],
+                    $step['function'],
+                    $this->formatArgs($args)
+                ) . '</div>';
             }
 
             if (isset($step['file']) && isset($step['line'])) {

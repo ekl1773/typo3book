@@ -21,7 +21,6 @@ use T3G\AgencyPack\Blog\Domain\Repository\TagRepository;
 use T3G\AgencyPack\Blog\Service\CacheService;
 use T3G\AgencyPack\Blog\Service\MetaService;
 use T3G\AgencyPack\Blog\Utility\ArchiveUtility;
-use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
@@ -149,8 +148,7 @@ class PostController extends ActionController
      */
     public function listRecentPostsAction(): void
     {
-        $maximumItems = (int)ArrayUtility::getValueByPath($this->settings, 'lists.posts.maximumDisplayedItems', '.') ?: 0;
-
+        $maximumItems = (int) ($this->settings['lists']['posts']['maximumDisplayedItems'] ?? 0);
         $posts = (0 === $maximumItems)
             ? $this->postRepository->findAll()
             : $this->postRepository->findAllWithLimit($maximumItems);
@@ -204,11 +202,10 @@ class PostController extends ActionController
      */
     public function listPostsByCategoryAction(Category $category = null): void
     {
-        if (null === $category) {
+        if ($category === null) {
             $categories = $this->categoryRepository->getByReference(
                 'tt_content',
                 $this->configurationManager->getContentObject()->data['uid']
-
             );
 
             if (!empty($categories)) {
@@ -217,15 +214,15 @@ class PostController extends ActionController
             }
         }
 
-        if (null === $category) {
-            $this->view->assign('categories', $this->categoryRepository->findAll());
-        } else {
+        if ($category) {
             $posts = $this->postRepository->findAllByCategory($category);
             $this->view->assign('posts', $posts);
             $this->view->assign('category', $category);
             MetaService::set(MetaService::META_TITLE, $category->getTitle());
             MetaService::set(MetaService::META_DESCRIPTION, $category->getDescription());
             MetaService::set(MetaService::META_CATEGORIES, [$category->getTitle()]);
+        } else {
+            $this->view->assign('categories', $this->categoryRepository->findAll());
         }
     }
 
@@ -238,14 +235,14 @@ class PostController extends ActionController
      */
     public function listPostsByAuthorAction(Author $author = null): void
     {
-        if (null === $author) {
-            $this->view->assign('authors', $this->authorRepository->findAll());
-        } else {
+        if ($author) {
             $posts = $this->postRepository->findAllByAuthor($author);
             $this->view->assign('posts', $posts);
             $this->view->assign('author', $author);
             MetaService::set(MetaService::META_TITLE, $author->getName());
             MetaService::set(MetaService::META_DESCRIPTION, $author->getBio());
+        } else {
+            $this->view->assign('authors', $this->authorRepository->findAll());
         }
     }
 
@@ -258,15 +255,15 @@ class PostController extends ActionController
      */
     public function listPostsByTagAction(Tag $tag = null): void
     {
-        if (null === $tag) {
-            $this->view->assign('tags', $this->tagRepository->findAll());
-        } else {
+        if ($tag) {
             $posts = $this->postRepository->findAllByTag($tag);
             $this->view->assign('posts', $posts);
             $this->view->assign('tag', $tag);
             MetaService::set(MetaService::META_TITLE, $tag->getTitle());
             MetaService::set(MetaService::META_DESCRIPTION, $tag->getDescription());
             MetaService::set(MetaService::META_TAGS, [$tag->getTitle()]);
+        } else {
+            $this->view->assign('tags', $this->tagRepository->findAll());
         }
     }
 

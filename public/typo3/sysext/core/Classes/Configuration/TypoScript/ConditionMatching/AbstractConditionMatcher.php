@@ -20,6 +20,7 @@ use Symfony\Component\ExpressionLanguage\SyntaxError;
 use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Configuration\TypoScript\Exception\InvalidTypoScriptConditionException;
 use TYPO3\CMS\Core\Error\Exception;
+use TYPO3\CMS\Core\Exception\MissingTsfeException;
 use TYPO3\CMS\Core\ExpressionLanguage\Resolver;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -72,6 +73,27 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
     protected $expressionLanguageResolver;
 
     /**
+     * @var array
+     */
+    protected $expressionLanguageResolverVariables = [];
+
+    protected function initializeExpressionLanguageResolver(): void
+    {
+        $this->updateExpressionLanguageVariables();
+        $this->expressionLanguageResolver = GeneralUtility::makeInstance(
+            Resolver::class,
+            'typoscript',
+            $this->expressionLanguageResolverVariables
+        );
+    }
+
+    protected function updateExpressionLanguageVariables(): void
+    {
+        // deliberately empty and not "abstract" due to backwards compatibility
+        // implement this method in derived classes
+    }
+
+    /**
      * @return bool
      */
     protected function strictSyntaxEnabled(): bool
@@ -89,6 +111,7 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
         if (is_int($pageId) && $pageId > 0) {
             $this->pageId = $pageId;
         }
+        $this->initializeExpressionLanguageResolver();
     }
 
     /**
@@ -111,6 +134,7 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
         if (!empty($rootline)) {
             $this->rootline = $rootline;
         }
+        $this->initializeExpressionLanguageResolver();
     }
 
     /**
@@ -267,6 +291,10 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
             if ($result !== null) {
                 return $result;
             }
+        } catch (MissingTsfeException $e) {
+            // TSFE is not available in the current context (e.g. TSFE in BE context),
+            // we set all conditions false for this case.
+            return false;
         } catch (SyntaxError $exception) {
             // SyntaxException means no support, let's try the fallback
             $message = 'Expression could not be parsed, fallback kicks in.';

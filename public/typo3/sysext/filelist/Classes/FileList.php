@@ -477,7 +477,9 @@ class FileList
                     $table = '_FILE';
                     $elFromTable = $this->clipObj->elFromTable($table);
                     if (!empty($elFromTable) && $this->folderObject->checkActionPermission('write')) {
-                        $addPasteButton = true;
+                        $clipboardMode = $this->clipObj->clipData[$this->clipObj->current]['mode'] ?? '';
+                        $permission = $clipboardMode === 'copy' ? 'copy' : 'move';
+                        $addPasteButton = $this->folderObject->checkActionPermission($permission);
                         $elToConfirm = [];
                         foreach ($elFromTable as $key => $element) {
                             $clipBoardElement = $this->resourceFactory->retrieveFileOrFolderObject($element);
@@ -504,6 +506,8 @@ class FileList
                                 . $this->iconFactory->getIcon('actions-document-paste-into', Icon::SIZE_SMALL)
                                     ->render()
                                 . '</a>';
+                        } else {
+                            $cells[] = $this->spaceIcon;
                         }
                     }
                     if ($this->clipObj->current !== 'normal' && $iOut) {
@@ -513,6 +517,8 @@ class FileList
                         $cells[] = '<a class="btn btn-default" rel="" href="#" onclick="' . htmlspecialchars($onClick) . '" title="' . htmlspecialchars($this->getLanguageService()->getLL('clip_markRecords')) . '">' . $this->iconFactory->getIcon('actions-document-select', Icon::SIZE_SMALL)->render() . '</a>';
                     }
                     $theData[$v] = implode('', $cells);
+                } elseif ($v === '_REF_') {
+                    $theData[$v] = htmlspecialchars($this->getLanguageService()->getLL('c_' . $v));
                 } else {
                     // Normal row:
                     $theT = $this->linkWrapSort(htmlspecialchars($this->getLanguageService()->getLL('c_' . $v)), $this->folderObject->getCombinedIdentifier(), $v);
@@ -694,16 +700,16 @@ class FileList
             case 'fwd':
                 $href = $this->listURL() . '&pointer=' . ($pointer - $this->iLimit) . $tParam;
                 $content = '<a href="' . htmlspecialchars($href) . '">' . $this->iconFactory->getIcon(
-                        'actions-move-up',
-                        Icon::SIZE_SMALL
-                    )->render() . ' <i>[' . (max(0, $pointer - $this->iLimit) + 1) . ' - ' . $pointer . ']</i></a>';
+                    'actions-move-up',
+                    Icon::SIZE_SMALL
+                )->render() . ' <i>[' . (max(0, $pointer - $this->iLimit) + 1) . ' - ' . $pointer . ']</i></a>';
                 break;
             case 'rwd':
                 $href = $this->listURL() . '&pointer=' . $pointer . $tParam;
                 $content = '<a href="' . htmlspecialchars($href) . '">' . $this->iconFactory->getIcon(
-                        'actions-move-down',
-                        Icon::SIZE_SMALL
-                    )->render() . ' <i>[' . ($pointer + 1) . ' - ' . $this->totalItems . ']</i></a>';
+                    'actions-move-down',
+                    Icon::SIZE_SMALL
+                )->render() . ' <i>[' . ($pointer + 1) . ' - ' . $this->totalItems . ']</i></a>';
                 break;
         }
         return $content;
@@ -800,9 +806,9 @@ class FileList
         $title = htmlspecialchars($this->languageIconTitles[$sys_language_uid]['title']);
         if ($this->languageIconTitles[$sys_language_uid]['flagIcon']) {
             $out .= '<span title="' . $title . '">' . $this->iconFactory->getIcon(
-                    $this->languageIconTitles[$sys_language_uid]['flagIcon'],
-                    Icon::SIZE_SMALL
-                )->render() . '</span>';
+                $this->languageIconTitles[$sys_language_uid]['flagIcon'],
+                Icon::SIZE_SMALL
+            )->render() . '</span>';
             if (!$addAsAdditionalText) {
                 return $out;
             }
@@ -1048,7 +1054,7 @@ class FileList
                         $theData[$field] = '' . (!$fileObject->checkActionPermission('read') ? ' ' : '<strong class="text-danger">' . htmlspecialchars($this->getLanguageService()->getLL('read')) . '</strong>') . (!$fileObject->checkActionPermission('write') ? '' : '<strong class="text-danger">' . htmlspecialchars($this->getLanguageService()->getLL('write')) . '</strong>');
                         break;
                     case 'fileext':
-                        $theData[$field] = strtoupper($ext);
+                        $theData[$field] = htmlspecialchars(strtoupper($ext));
                         break;
                     case 'tstamp':
                         $theData[$field] = BackendUtility::date($fileObject->getModificationTime());
@@ -1257,17 +1263,21 @@ class FileList
                 $cutIcon = $this->iconFactory->getIcon('actions-edit-cut-release', Icon::SIZE_SMALL)->render();
             }
 
-            $cells[] = '<a class="btn btn-default" href="' . htmlspecialchars($this->clipObj->selUrlFile(
-                $fullIdentifier,
-                1,
+            if ($fileOrFolderObject->checkActionPermission('copy')) {
+                $cells[] = '<a class="btn btn-default" href="' . htmlspecialchars($this->clipObj->selUrlFile(
+                    $fullIdentifier,
+                    1,
                     $isSel === 'copy'
-            )) . '" title="' . $copyTitle . '">' . $copyIcon . '</a>';
+                )) . '" title="' . $copyTitle . '">' . $copyIcon . '</a>';
+            } else {
+                $cells[] = $this->spaceIcon;
+            }
             // we can only cut if file can be moved
             if ($fileOrFolderObject->checkActionPermission('move')) {
                 $cells[] = '<a class="btn btn-default" href="' . htmlspecialchars($this->clipObj->selUrlFile(
                     $fullIdentifier,
                     0,
-                        $isSel === 'cut'
+                    $isSel === 'cut'
                 )) . '" title="' . $cutTitle . '">' . $cutIcon . '</a>';
             } else {
                 $cells[] = $this->spaceIcon;
@@ -1282,7 +1292,9 @@ class FileList
         // Display PASTE button, if directory:
         $elFromTable = $this->clipObj->elFromTable('_FILE');
         if ($fileOrFolderObject instanceof Folder && !empty($elFromTable) && $fileOrFolderObject->checkActionPermission('write')) {
-            $addPasteButton = true;
+            $clipboardMode = $this->clipObj->clipData[$this->clipObj->current]['mode'] ?? '';
+            $permission = $clipboardMode === 'copy' ? 'copy' : 'move';
+            $addPasteButton = $this->folderObject->checkActionPermission($permission);
             $elToConfirm = [];
             foreach ($elFromTable as $key => $element) {
                 $clipBoardElement = $this->resourceFactory->retrieveFileOrFolderObject($element);
@@ -1301,6 +1313,8 @@ class FileList
                     . '>'
                     . $this->iconFactory->getIcon('actions-document-paste-into', Icon::SIZE_SMALL)->render()
                     . '</a>';
+            } else {
+                $cells[] = $this->spaceIcon;
             }
         }
         // Compile items into a DIV-element:
@@ -1554,14 +1568,14 @@ class FileList
             $htmlCode = '<a href="#"';
             if ($launchViewParameter !== '') {
                 $htmlCode .= ' onclick="' . htmlspecialchars(
-                        'top.TYPO3.InfoWindow.showItem(' . $launchViewParameter . '); return false;'
-                    ) . '"';
+                    'top.TYPO3.InfoWindow.showItem(' . $launchViewParameter . '); return false;'
+                ) . '"';
             }
             $htmlCode .= ' title="' . htmlspecialchars(
-                    $this->getLanguageService()->sL(
-                        'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:show_references'
-                    ) . ' (' . $references . ')'
-                ) . '">';
+                $this->getLanguageService()->sL(
+                    'LLL:EXT:backend/Resources/Private/Language/locallang.xlf:show_references'
+                ) . ' (' . $references . ')'
+            ) . '">';
             $htmlCode .= $references;
             $htmlCode .= '</a>';
         }

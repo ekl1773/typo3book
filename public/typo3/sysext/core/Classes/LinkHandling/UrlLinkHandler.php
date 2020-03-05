@@ -51,9 +51,13 @@ class UrlLinkHandler implements LinkHandlingInterface
     protected function addHttpSchemeAsFallback(string $url): string
     {
         if (!empty($url)) {
-            $urlParts = parse_url($url);
-            if (empty($urlParts['scheme'])) {
+            $scheme = parse_url($url, PHP_URL_SCHEME);
+            if (empty($scheme)) {
                 $url = 'http://' . $url;
+            // 'java{TAB}script:' is parsed as empty URL scheme, thus not ending up here
+            } elseif (in_array(strtolower($scheme), ['javascript', 'data'], true)) {
+                // deny using insecure scheme's like `javascript:` or `data:` as URL scheme
+                $url = '';
             }
         }
         return $url;

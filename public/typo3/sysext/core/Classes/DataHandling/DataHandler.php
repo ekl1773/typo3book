@@ -736,12 +736,19 @@ class DataHandler implements LoggerAwareInterface
     {
         // Initializing BE_USER
         $this->BE_USER = is_object($altUserObject) ? $altUserObject : $GLOBALS['BE_USER'];
-        $this->userid = $this->BE_USER->user['uid'];
-        $this->username = $this->BE_USER->user['username'];
-        $this->admin = $this->BE_USER->user['admin'];
-        if ($this->BE_USER->uc['recursiveDelete']) {
+        $this->userid = $this->BE_USER->user['uid'] ?? 0;
+        $this->username = $this->BE_USER->user['username'] ?? '';
+        $this->admin = $this->BE_USER->user['admin'] ?? false;
+        if ($this->BE_USER->uc['recursiveDelete'] ?? false) {
             $this->deleteTree = 1;
         }
+
+        // Get default values from user TSConfig
+        $tcaDefaultOverride = $this->BE_USER->getTSConfig()['TCAdefaults.'] ?? null;
+        if (is_array($tcaDefaultOverride)) {
+            $this->setDefaultsFromUserTS($tcaDefaultOverride);
+        }
+
         // Initializing default permissions for pages
         $defaultPermissions = $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPermissions'];
         if (isset($defaultPermissions['user'])) {
@@ -1018,7 +1025,7 @@ class DataHandler implements LoggerAwareInterface
                 $this->autoVersioningUpdate = false;
                 // Is it a new record? (Then Id is a string)
                 if (!MathUtility::canBeInterpretedAsInteger($id)) {
-                    // Get a fieldArray with default values
+                    // Get a fieldArray with tca default values
                     $fieldArray = $this->newFieldArray($table);
                     // A pid must be set for new records.
                     if (isset($incomingFieldArray['pid'])) {
@@ -1105,7 +1112,7 @@ class DataHandler implements LoggerAwareInterface
                     } else {
                         // Here we fetch the PID of the record that we point to...
                         $tempdata = $this->recordInfo($table, $id, 'pid' . (!empty($GLOBALS['TCA'][$table]['ctrl']['versioningWS']) ? ',t3ver_wsid,t3ver_stage' : ''));
-                        $theRealPid = $tempdata['pid'];
+                        $theRealPid = $tempdata['pid'] ?? null;
                         // Use the new id of the versionized record we're trying to write to:
                         // (This record is a child record of a parent and has already been versionized.)
                         if (!empty($this->autoVersionIdMap[$table][$id])) {
@@ -1253,7 +1260,7 @@ class DataHandler implements LoggerAwareInterface
                             $newVersion_placeholderFieldArray['t3ver_wsid'] = $this->BE_USER->workspace;
                             $newVersion_placeholderFieldArray[$GLOBALS['TCA'][$table]['ctrl']['label']] = $this->getPlaceholderTitleForTableLabel($table);
                             // Saving placeholder as 'original'
-                            $this->insertDB($table, $id, $newVersion_placeholderFieldArray, false, $incomingFieldArray['uid'] ?? 0);
+                            $this->insertDB($table, $id, $newVersion_placeholderFieldArray, false, (int)($incomingFieldArray['uid'] ?? 0));
                             // For the actual new offline version, set versioning values to point to placeholder:
                             $fieldArray['pid'] = -1;
                             $fieldArray['t3ver_oid'] = $this->substNEWwithIDs[$id];
@@ -1271,7 +1278,7 @@ class DataHandler implements LoggerAwareInterface
                                 $this->autoVersionIdMap[$table][$this->substNEWwithIDs[$id]] = $phShadowId;
                             }
                         } else {
-                            $this->insertDB($table, $id, $fieldArray, false, $incomingFieldArray['uid']);
+                            $this->insertDB($table, $id, $fieldArray, false, (int)($incomingFieldArray['uid'] ?? 0));
                         }
                     } else {
                         if ($table === 'pages') {
@@ -1371,40 +1378,58 @@ class DataHandler implements LoggerAwareInterface
     }
 
     /**
-     * Fix shadowing of data in case we are editing an offline version of a live "New" placeholder record:
+     * Fix shadowing of data in case we are editing an offline version of a live "New" placeholder record.
      *
      * @param string $table Table name
      * @param int $id Record uid
      */
     public function placeholderShadowing($table, $id)
     {
-        if ($liveRec = BackendUtility::getLiveVersionOfRecord($table, $id, '*')) {
-            if (VersionState::cast($liveRec['t3ver_state'])->indicatesPlaceholder()) {
-                $justStoredRecord = BackendUtility::getRecord($table, $id);
-                $newRecord = [];
-                $shadowCols = $GLOBALS['TCA'][$table]['ctrl']['shadowColumnsForNewPlaceholders'];
-                $shadowCols .= ',' . $GLOBALS['TCA'][$table]['ctrl']['languageField'];
-                $shadowCols .= ',' . $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-                if (isset($GLOBALS['TCA'][$table]['ctrl']['translationSource'])) {
-                    $shadowCols .= ',' . $GLOBALS['TCA'][$table]['ctrl']['translationSource'];
-                }
-                $shadowCols .= ',' . $GLOBALS['TCA'][$table]['ctrl']['type'];
-                $shadowCols .= ',' . $GLOBALS['TCA'][$table]['ctrl']['label'];
-                $shadowCols .= ',' . implode(',', GeneralUtility::makeInstance(SlugEnricher::class)->resolveSlugFieldNames($table));
-                $shadowColumns = array_unique(GeneralUtility::trimExplode(',', $shadowCols, true));
-                foreach ($shadowColumns as $fieldName) {
-                    if ((string)$justStoredRecord[$fieldName] !== (string)$liveRec[$fieldName] && isset($GLOBALS['TCA'][$table]['columns'][$fieldName]) && $fieldName !== 'uid' && $fieldName !== 'pid') {
-                        $newRecord[$fieldName] = $justStoredRecord[$fieldName];
-                    }
-                }
-                if (!empty($newRecord)) {
-                    if ($this->enableLogging) {
-                        $this->log($table, $liveRec['uid'], 0, 0, 0, 'Shadowing done on fields <i>' . implode(',', array_keys($newRecord)) . '</i> in placeholder record ' . $table . ':' . $liveRec['uid'] . ' (offline version UID=' . $id . ')', -1, [], $this->eventPid($table, $liveRec['uid'], $liveRec['pid']));
-                    }
-                    $this->updateDB($table, $liveRec['uid'], $newRecord);
-                }
+        $liveRecord = BackendUtility::getLiveVersionOfRecord($table, $id, '*');
+        if (empty($liveRecord)) {
+            return;
+        }
+
+        $liveState = VersionState::cast($liveRecord['t3ver_state']);
+        $versionRecord = BackendUtility::getRecord($table, $id);
+        $versionState = VersionState::cast($versionRecord['t3ver_state']);
+
+        if (!$liveState->indicatesPlaceholder() && !$versionState->indicatesPlaceholder()) {
+            return;
+        }
+        $factory = GeneralUtility::makeInstance(
+            PlaceholderShadowColumnsResolver::class,
+            $table,
+            $GLOBALS['TCA'][$table] ?? []
+        );
+
+        if ($versionState->equals(VersionState::MOVE_POINTER)) {
+            $placeholderRecord = BackendUtility::getMovePlaceholder($table, $liveRecord['uid'], '*', $versionRecord['t3ver_wsid']);
+            $shadowColumns = $factory->forMovePlaceholder();
+        } elseif ($liveState->indicatesPlaceholder()) {
+            $placeholderRecord = $liveRecord;
+            $shadowColumns = $factory->forNewPlaceholder();
+        } else {
+            return;
+        }
+        if (empty($shadowColumns)) {
+            return;
+        }
+
+        $placeholderValues = [];
+        foreach ($shadowColumns as $fieldName) {
+            if ((string)$versionRecord[$fieldName] !== (string)$placeholderRecord[$fieldName]) {
+                $placeholderValues[$fieldName] = $versionRecord[$fieldName];
             }
         }
+        if (empty($placeholderValues)) {
+            return;
+        }
+
+        if ($this->enableLogging) {
+            $this->log($table, $placeholderRecord['uid'], 0, 0, 0, 'Shadowing done on fields <i>' . implode(',', array_keys($placeholderRecord)) . '</i> in placeholder record ' . $table . ':' . $liveRecord['uid'] . ' (offline version UID=' . $id . ')', -1, [], $this->eventPid($table, $liveRecord['uid'], $liveRecord['pid']));
+        }
+        $this->updateDB($table, $placeholderRecord['uid'], $placeholderValues);
     }
 
     /**
@@ -1476,7 +1501,10 @@ class DataHandler implements LoggerAwareInterface
         ) {
             $originalLanguageRecord = $this->recordInfo($table, $currentRecord[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']], '*');
             BackendUtility::workspaceOL($table, $originalLanguageRecord);
-            $originalLanguage_diffStorage = unserialize($currentRecord[$GLOBALS['TCA'][$table]['ctrl']['transOrigDiffSourceField']]);
+            $originalLanguage_diffStorage = unserialize(
+                $currentRecord[$GLOBALS['TCA'][$table]['ctrl']['transOrigDiffSourceField']],
+                ['allowed_classes' => false]
+            );
         }
 
         $this->checkValue_currentRecord = $checkValueRecord;
@@ -2601,7 +2629,7 @@ class DataHandler implements LoggerAwareInterface
             // Action commands (sorting order and removals of elements) for flexform sections,
             // see FormEngine for the use of this GP parameter
             $actionCMDs = GeneralUtility::_GP('_ACTION_FLEX_FORMdata');
-            if (is_array($actionCMDs[$table][$id][$field]['data'])) {
+            if (is_array($actionCMDs[$table][$id][$field]['data'] ?? null)) {
                 $arrValue = GeneralUtility::xml2array($xmlValue);
                 $this->_ACTION_FLEX_FORMdata($arrValue['data'], $actionCMDs[$table][$id][$field]['data']);
                 $xmlValue = $this->checkValue_flexArray2Xml($arrValue, true);
@@ -3285,30 +3313,32 @@ class DataHandler implements LoggerAwareInterface
                     $this->checkValue_flex_procInData_travDS($dataValues[$key]['el'], $dataValues_current[$key]['el'], $uploadedFiles[$key]['el'], $DSelements[$key]['el'], $pParams, $callBackFunc, $structurePath . $key . '/el/', $workspaceOptions);
                 }
             } else {
+                // When having no specific sheets, it's "TCEforms.config", when having a sheet, it's just "config"
+                $fieldConfiguration = $dsConf['TCEforms']['config'] ?? $dsConf['config'] ?? null;
                 // init with value from config for passthrough fields
-                if (!empty($dsConf['TCEforms']['config']['type']) && $dsConf['TCEforms']['config']['type'] === 'passthrough') {
+                if (!empty($fieldConfiguration['type']) && $fieldConfiguration['type'] === 'passthrough') {
                     if (!empty($dataValues_current[$key]['vDEF'])) {
                         // If there is existing value, keep it
                         $dataValues[$key]['vDEF'] = $dataValues_current[$key]['vDEF'];
                     } elseif (
-                        !empty($dsConf['TCEforms']['config']['default'])
+                        !empty($fieldConfiguration['default'])
                         && isset($pParams[1])
                         && !MathUtility::canBeInterpretedAsInteger($pParams[1])
                     ) {
                         // If is new record and a default is specified for field, use it.
-                        $dataValues[$key]['vDEF'] = $dsConf['TCEforms']['config']['default'];
+                        $dataValues[$key]['vDEF'] = $fieldConfiguration['default'];
                     }
                 }
-                if (!is_array($dsConf['TCEforms']['config']) || !is_array($dataValues[$key])) {
+                if (!is_array($fieldConfiguration) || !is_array($dataValues[$key])) {
                     continue;
                 }
 
                 foreach ($dataValues[$key] as $vKey => $data) {
                     if ($callBackFunc) {
                         if (is_object($this->callBackObj)) {
-                            $res = $this->callBackObj->{$callBackFunc}($pParams, $dsConf['TCEforms']['config'], $dataValues[$key][$vKey], $dataValues_current[$key][$vKey], $uploadedFiles[$key][$vKey], $structurePath . $key . '/' . $vKey . '/', $workspaceOptions);
+                            $res = $this->callBackObj->{$callBackFunc}($pParams, $fieldConfiguration, $dataValues[$key][$vKey], $dataValues_current[$key][$vKey], $uploadedFiles[$key][$vKey], $structurePath . $key . '/' . $vKey . '/', $workspaceOptions);
                         } else {
-                            $res = $this->{$callBackFunc}($pParams, $dsConf['TCEforms']['config'], $dataValues[$key][$vKey], $dataValues_current[$key][$vKey], $uploadedFiles[$key][$vKey], $structurePath . $key . '/' . $vKey . '/', $workspaceOptions);
+                            $res = $this->{$callBackFunc}($pParams, $fieldConfiguration, $dataValues[$key][$vKey], $dataValues_current[$key][$vKey], $uploadedFiles[$key][$vKey], $structurePath . $key . '/' . $vKey . '/', $workspaceOptions);
                         }
                     } else {
                         // Default
@@ -3319,7 +3349,7 @@ class DataHandler implements LoggerAwareInterface
                             'flexFormPath' => trim(rtrim($structurePath, '/') . '/' . $key . '/' . $vKey, '/'),
                         ];
 
-                        $res = $this->checkValue_SW([], $dataValues[$key][$vKey], $dsConf['TCEforms']['config'], $CVtable, $CVid, $dataValues_current[$key][$vKey], $CVstatus, $CVrealPid, $CVrecFID, '', $uploadedFiles[$key][$vKey], $CVtscPID, $additionalData);
+                        $res = $this->checkValue_SW([], $dataValues[$key][$vKey], $fieldConfiguration, $CVtable, $CVid, $dataValues_current[$key][$vKey], $CVstatus, $CVrealPid, $CVrecFID, '', $uploadedFiles[$key][$vKey], $CVtscPID, $additionalData);
                     }
                     // Adding the value:
                     if (isset($res['value'])) {
@@ -3471,10 +3501,12 @@ class DataHandler implements LoggerAwareInterface
                                 $this->moveRecord($table, $id, $value);
                                 break;
                             case 'copy':
+                                $target = $value['target'] ?? $value;
+                                $ignoreLocalization = (bool)($value['ignoreLocalization'] ?? false);
                                 if ($table === 'pages') {
-                                    $this->copyPages($id, $value);
+                                    $this->copyPages($id, $target);
                                 } else {
-                                    $this->copyRecord($table, $id, $value, true);
+                                    $this->copyRecord($table, $id, $target, true, [], '', 0, $ignoreLocalization);
                                 }
                                 $procId = $this->copyMappingArray[$table][$id];
                                 break;
@@ -3666,7 +3698,9 @@ class DataHandler implements LoggerAwareInterface
         if (!$ignoreLocalization && $language == 0) {
             //repointing the new translation records to the parent record we just created
             $overrideValues[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']] = $theNewSQLID;
-            $overrideValues[$GLOBALS['TCA'][$table]['ctrl']['translationSource']] = 0;
+            if (isset($GLOBALS['TCA'][$table]['ctrl']['translationSource'])) {
+                $overrideValues[$GLOBALS['TCA'][$table]['ctrl']['translationSource']] = 0;
+            }
             $this->copyL10nOverlayRecords($table, $uid, $destPid, $first, $overrideValues, $excludeFields);
         }
 
@@ -3782,9 +3816,9 @@ class DataHandler implements LoggerAwareInterface
                         ->from($table)
                         ->where(
                             $queryBuilder->expr()->eq(
-                            'pid',
-                            $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
-                        )
+                                'pid',
+                                $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
+                            )
                         );
                     if ($isTableWorkspaceEnabled && (int)$this->BE_USER->workspace === 0) {
                         // Table is workspace enabled, user is in default ws -> add t3ver_wsid=0 restriction
@@ -4067,7 +4101,7 @@ class DataHandler implements LoggerAwareInterface
                 $recordLocalization = BackendUtility::getRecordLocalization($item['table'], $item['id'], $language);
                 if ($recordLocalization) {
                     $dbAnalysis->itemArray[$index]['id'] = $recordLocalization[0]['uid'];
-                } elseif ($this->isNestedElementCallRegistered($item['table'], $item['id'], 'localize') === false) {
+                } elseif ($this->isNestedElementCallRegistered($item['table'], $item['id'], 'localize-' . (string)$language) === false) {
                     $dbAnalysis->itemArray[$index]['id'] = $this->localize($item['table'], $item['id'], $language);
                 }
             }
@@ -4645,6 +4679,10 @@ class DataHandler implements LoggerAwareInterface
                 // Clear cache after moving
                 $this->registerRecordIdForPageCacheClearing($table, $uid);
                 $this->fixUniqueInPid($table, $uid);
+                $this->fixUniqueInSite($table, (int)$uid);
+                if ($table === 'pages') {
+                    $this->fixUniqueInSiteForSubpages((int)$uid);
+                }
                 // fixCopyAfterDuplFields
                 if ($origDestPid < 0) {
                     $this->fixCopyAfterDuplFields($table, $uid, abs($origDestPid), 1);
@@ -4703,8 +4741,11 @@ class DataHandler implements LoggerAwareInterface
                     }
                     // Clear cache after moving
                     $this->registerRecordIdForPageCacheClearing($table, $uid);
-                    // fixUniqueInPid
                     $this->fixUniqueInPid($table, $uid);
+                    $this->fixUniqueInSite($table, (int)$uid);
+                    if ($table === 'pages') {
+                        $this->fixUniqueInSiteForSubpages((int)$uid);
+                    }
                     // fixCopyAfterDuplFields
                     if ($origDestPid < 0) {
                         $this->fixCopyAfterDuplFields($table, $uid, abs($origDestPid), 1);
@@ -4851,11 +4892,11 @@ class DataHandler implements LoggerAwareInterface
     {
         $newId = false;
         $uid = (int)$uid;
-        if (!$GLOBALS['TCA'][$table] || !$uid || $this->isNestedElementCallRegistered($table, $uid, 'localize') !== false) {
+        if (!$GLOBALS['TCA'][$table] || !$uid || $this->isNestedElementCallRegistered($table, $uid, 'localize-' . (string)$language) !== false) {
             return false;
         }
 
-        $this->registerNestedElementCall($table, $uid, 'localize');
+        $this->registerNestedElementCall($table, $uid, 'localize-' . (string)$language);
         if (!$GLOBALS['TCA'][$table]['ctrl']['languageField'] || !$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']) {
             $this->newlog('Localization failed; "languageField" and "transOrigPointerField" must be defined for the table ' . $table, 1);
             return false;
@@ -4950,7 +4991,7 @@ class DataHandler implements LoggerAwareInterface
                     foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processTranslateToClass'] ?? [] as $className) {
                         $hookObj = GeneralUtility::makeInstance($className);
                         if (method_exists($hookObj, 'processTranslateTo_copyAction')) {
-                            $hookObj->processTranslateTo_copyAction($row[$fN], $langRec, $this);
+                            $hookObj->processTranslateTo_copyAction($row[$fN], $langRec, $this, $fN);
                         }
                     }
                     if (!empty($translateToMsg)) {
@@ -4974,6 +5015,12 @@ class DataHandler implements LoggerAwareInterface
         } else {
             // Create new page which needs to contain the same pid as the original page
             $overrideValues['pid'] = $row['pid'];
+            // Take over the hidden state of the original language state, this is done due to legacy reasons where-as
+            // pages_language_overlay was set to "hidden -> default=0" but pages hidden -> default 1"
+            if (!empty($GLOBALS['TCA'][$table]['ctrl']['enablecolumns']['disabled'])) {
+                $hiddenFieldName = $GLOBALS['TCA'][$table]['ctrl']['enablecolumns']['disabled'];
+                $overrideValues[$hiddenFieldName] = $row[$hiddenFieldName] ?? $GLOBALS['TCA'][$table]['columns'][$hiddenFieldName]['config']['default'];
+            }
             $temporaryId = StringUtility::getUniqueId('NEW');
             $copyTCE = $this->getLocalTCE();
             $copyTCE->start([$table => [$temporaryId => $overrideValues]], [], $this->BE_USER);
@@ -4981,7 +5028,6 @@ class DataHandler implements LoggerAwareInterface
             // Getting the new UID as if it had been copied:
             $theNewSQLID = $copyTCE->substNEWwithIDs[$temporaryId];
             if ($theNewSQLID) {
-                // If is by design that $table is used and not $table! See "l10nmgr" extension. Could be debated, but this is what I chose for this "pseudo case"
                 $this->copyMappingArray[$table][$uid] = $theNewSQLID;
                 $newId = $theNewSQLID;
             }
@@ -6045,6 +6091,8 @@ class DataHandler implements LoggerAwareInterface
         // make sure the isImporting flag is transferred, so all hooks know if
         // the current process is an import process
         $copyTCE->isImporting = $this->isImporting;
+        $copyTCE->bypassAccessCheckForRecords = $this->bypassAccessCheckForRecords;
+        $copyTCE->bypassWorkspaceRestrictions = $this->bypassWorkspaceRestrictions;
         return $copyTCE;
     }
 
@@ -6758,7 +6806,7 @@ class DataHandler implements LoggerAwareInterface
     {
         $cacheId = md5('doesRecordExist_pageLookUp' . '_' . $id . '_' . $perms . '_' . implode(
             '_',
-                $columns
+            $columns
         ) . '_' . (string)$this->admin);
 
         // If result is cached, return it
@@ -7532,7 +7580,7 @@ class DataHandler implements LoggerAwareInterface
                 }
                 // If the record sorting value < 1 we must resort all the records under this pid
                 if ($row[$sortColumn] < 1) {
-                    $this->increaseSortingOfFollowingRecords($table, (int)$pid, 0);
+                    $this->increaseSortingOfFollowingRecords($table, (int)$pid);
                     // Lowest sorting value after full resorting is $sortIntervals
                     return $this->sortIntervals;
                 }
@@ -7697,7 +7745,7 @@ class DataHandler implements LoggerAwareInterface
     }
 
     /**
-     * Increases sorting field value of all records with sorting higher than $sortingNumber
+     * Increases sorting field value of all records with sorting higher than $sortingValue
      *
      * Used internally by getSortNumber() to "make space" in sorting values when inserting new record
      *
@@ -7706,7 +7754,7 @@ class DataHandler implements LoggerAwareInterface
      * @param int $sortingValue All sorting numbers larger than this number will be shifted
      * @see getSortNumber()
      */
-    protected function increaseSortingOfFollowingRecords(string $table, int $pid, int $sortingValue): void
+    protected function increaseSortingOfFollowingRecords(string $table, int $pid, int $sortingValue = null): void
     {
         $sortBy = $GLOBALS['TCA'][$table]['ctrl']['sortby'] ?? '';
         if ($sortBy) {
@@ -7715,8 +7763,10 @@ class DataHandler implements LoggerAwareInterface
             $queryBuilder
                 ->update($table)
                 ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($pid, \PDO::PARAM_INT)))
-                ->andWhere($queryBuilder->expr()->gt($sortBy, $sortingValue))
                 ->set($sortBy, $queryBuilder->quoteIdentifier($sortBy) . ' + ' . $this->sortIntervals . ' + ' . $this->sortIntervals, false);
+            if ($sortingValue !== null) {
+                $queryBuilder->andWhere($queryBuilder->expr()->gt($sortBy, $sortingValue));
+            }
 
             $deleteColumn = $GLOBALS['TCA'][$table]['ctrl']['delete'] ?? '';
             if ($deleteColumn) {
@@ -8275,6 +8325,57 @@ class DataHandler implements LoggerAwareInterface
         // IF there are changed fields, then update the database
         if (!empty($newData)) {
             $this->updateDB($table, $uid, $newData);
+        }
+    }
+
+    /**
+     * Checks if any uniqueInSite eval fields are in the record and if so, they are re-written to be correct.
+     *
+     * @param string $table Table name
+     * @param int $uid Record UID
+     * @return bool whether the record had to be fixed or not
+     */
+    protected function fixUniqueInSite(string $table, int $uid): bool
+    {
+        $curData = $this->recordInfo($table, $uid, '*');
+        $workspaceId = $this->BE_USER->workspace;
+        $newData = [];
+        foreach ($GLOBALS['TCA'][$table]['columns'] as $field => $conf) {
+            if ($conf['config']['type'] === 'slug' && (string)$curData[$field] !== '') {
+                $evalCodesArray = GeneralUtility::trimExplode(',', $conf['config']['eval'], true);
+                if (in_array('uniqueInSite', $evalCodesArray, true)) {
+                    $helper = GeneralUtility::makeInstance(SlugHelper::class, $table, $field, $conf['config'], $workspaceId);
+                    $state = RecordStateFactory::forName($table)->fromArray($curData);
+                    $newValue = $helper->buildSlugForUniqueInSite($curData[$field], $state);
+                    if ((string)$newValue !== (string)$curData[$field]) {
+                        $newData[$field] = $newValue;
+                    }
+                }
+            }
+        }
+        // IF there are changed fields, then update the database
+        if (!empty($newData)) {
+            $this->updateDB($table, $uid, $newData);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if there are subpages that need an adoption as well
+     * @param int $pageId
+     * @param int $pid
+     */
+    protected function fixUniqueInSiteForSubpages(int $pageId)
+    {
+        // Get ALL subpages to update - read-permissions are respected
+        $subPages = $this->int_pageTreeInfo([], $pageId, 99, $pageId);
+        // Now fix uniqueInSite for subpages
+        foreach ($subPages as $thePageUid => $thePagePid) {
+            $recordWasModified = $this->fixUniqueInSite('pages', $thePageUid);
+            if ($recordWasModified) {
+                // @todo: Add logging and history - but how? we don't know the data that was in the system before
+            }
         }
     }
 
@@ -9476,5 +9577,10 @@ class DataHandler implements LoggerAwareInterface
     protected function getLanguageService()
     {
         return $GLOBALS['LANG'];
+    }
+
+    public function getHistoryRecords(): array
+    {
+        return $this->historyRecords;
     }
 }

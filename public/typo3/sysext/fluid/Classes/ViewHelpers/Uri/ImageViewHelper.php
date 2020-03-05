@@ -27,40 +27,58 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 /**
  * Resizes a given image (if required) and returns its relative path.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Default">
- * <f:uri.image src="EXT:myext/Resources/Public/typo3_logo.png" />
- * </code>
- * <output>
- * typo3conf/ext/myext/Resources/Public/typo3_logo.png
- * or (in BE mode):
- * ../typo3conf/ext/myext/Resources/Public/typo3_logo.png
- * </output>
+ * Default
+ * -------
  *
- * <code title="Image Object">
- * <f:uri.image image="{imageObject}" />
- * </code>
- * <output>
- * fileadmin/images/image.png
- * or (in BE mode):
- * fileadmin/images/image.png
- * </output>
+ * ::
  *
- * <code title="Inline notation">
- * {f:uri.image(src: 'EXT:myext/Resources/Public/typo3_logo.png', minWidth: 30, maxWidth: 40)}
- * </code>
- * <output>
- * typo3temp/assets/images/[b4c0e7ed5c].png
- * (depending on your TYPO3s encryption key)
- * </output>
+ *    <f:uri.image src="EXT:myext/Resources/Public/typo3_logo.png" />
  *
- * <code title="non existing image">
- * <f:uri.image src="NonExistingImage.png" />
- * </code>
- * <output>
- * Could not get image resource for "NonExistingImage.png".
- * </output>
+ * Results in the following output within TYPO3 frontend:
+ *
+ * ``typo3conf/ext/myext/Resources/Public/typo3_logo.png``
+ *
+ * and the following output inside TYPO3 backend:
+ *
+ * ``../typo3conf/ext/myext/Resources/Public/typo3_logo.png``
+ *
+ * Image Object
+ * ------------
+ *
+ * ::
+ *
+ *    <f:uri.image image="{imageObject}" />
+ *
+ * Results in the following output within TYPO3 frontend:
+ *
+ * ``fileadmin/images/image.png``
+ *
+ * and the following output inside TYPO3 backend:
+ *
+ * ``fileadmin/images/image.png``
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {f:uri.image(src: 'EXT:myext/Resources/Public/typo3_logo.png', minWidth: 30, maxWidth: 40)}
+ *
+ * ``typo3temp/assets/images/[b4c0e7ed5c].png``
+ *
+ * Depending on your TYPO3s encryption key.
+ *
+ * Non existing image
+ * ------------------
+ *
+ * ::
+ *
+ *    <f:uri.image src="NonExistingImage.png" />
+ *
+ * ``Could not get image resource for "NonExistingImage.png".``
  */
 class ImageViewHelper extends AbstractViewHelper
 {

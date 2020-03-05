@@ -276,6 +276,7 @@ return [
                     ['mf', 'mf', 'flags-mf'],
                     ['mg', 'mg', 'flags-mg'],
                     ['mh', 'mh', 'flags-mh'],
+                    ['mi', 'mi', 'flags-mi'],
                     ['mk', 'mk', 'flags-mk'],
                     ['ml', 'ml', 'flags-ml'],
                     ['mm', 'mm', 'flags-mm'],
@@ -405,14 +406,15 @@ return [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
                 'items' => [
-                    ['No fallback (strict)', 'strict'],
-                    ['Fallback to other language', 'fallback'],
+                    ['Strict: Show only translated content, based on overlays', 'strict'],
+                    ['Fallback: Show default language if no translation exists', 'fallback'],
+                    ['Free mode: Ignore translation and overlay concept, only show data from selected language', 'free'],
                 ],
             ],
         ],
         'fallbacks' => [
             'label' => 'LLL:EXT:backend/Resources/Private/Language/locallang_siteconfiguration_tca.xlf:site_language.fallbacks',
-            'displayCond' => 'FIELD:fallbackType:=:fallback',
+            'displayCond' => 'FIELD:languageId:>:0',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectMultipleSideBySide',
@@ -427,12 +429,16 @@ return [
     ],
     'types' => [
         '1' => [
-            'showitem' => '--palette--;;default, --palette--;;locale-related, --palette--;;rendering-related, flag',
+            'showitem' => '--palette--;;default, --palette--;;locale-related, --palette--;;rendering-related, flag, --palette--;;languageIdPalette',
         ],
     ],
     'palettes' => [
         'default' => [
-            'showitem' => 'title, enabled, languageId, --linebreak--, base'
+            'showitem' => 'title, enabled, --linebreak--, base'
+        ],
+        'languageIdPalette' => [
+            'showitem' => 'languageId',
+            'isHiddenPalette' => true,
         ],
         'locale-related' => [
             'label' => 'LLL:EXT:backend/Resources/Private/Language/locallang_siteconfiguration_tca.xlf:site_language.palette.locales',

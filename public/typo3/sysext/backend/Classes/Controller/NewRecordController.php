@@ -357,19 +357,7 @@ class NewRecordController
         // Setting up the context sensitive menu:
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/ContextMenu');
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/Tooltip');
-        $this->moduleTemplate->getPageRenderer()->loadRequireJsModule(
-            'TYPO3/CMS/Backend/Wizard/NewContentElement',
-            'function(NewContentElement) {
-                require([\'jquery\'], function($) {
-                    $(function() {
-                        $(\'.t3js-toggle-new-content-element-wizard\').click(function() {
-                            var $me = $(this);
-                            NewContentElement.wizard($me.data(\'url\'), $me.data(\'title\'));
-                        });
-                    });
-                });
-            }'
-        );
+        $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/PageActions');
         // Creating content
         $this->content = '';
         $this->content .= '<h1>'
@@ -547,7 +535,7 @@ class NewRecordController
     protected function renderPositionTree(): ?ResponseInterface
     {
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('sys_language');
+            ->getQueryBuilderForTable('pages');
         $queryBuilder->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -706,7 +694,7 @@ class NewRecordController
                             $url = (string)$uriBuilder->buildUriFromRoute($moduleName, ['id' => $this->id, 'returnUrl' => $normalizedParams->getRequestUri()]);
                             $rowContent .= '<li>' . $newLink . ' ' . BackendUtility::wrapInHelp($table, '') . '</li>'
                                 . '<li>'
-                                . '<a href="#" data-url="' . htmlspecialchars($url) . '" data-title="' . htmlspecialchars($this->getLanguageService()->getLL('newContentElement')) . '" class="t3js-toggle-new-content-element-wizard">'
+                                . '<a href="' . htmlspecialchars($url) . '" data-title="' . htmlspecialchars($this->getLanguageService()->getLL('newContentElement')) . '" class="t3js-toggle-new-content-element-wizard">'
                                 . $newContentIcon . htmlspecialchars($lang->getLL('clickForWizard'))
                                 . '</a>'
                                 . '</li>'
@@ -724,12 +712,13 @@ class NewRecordController
                             $_EXTKEY = '';
                             if ($nameParts[0] === 'tx' || $nameParts[0] === 'tt') {
                                 // Try to extract extension name
-                                if (strpos($v['ctrl']['title'], 'LLL:EXT:') === 0) {
-                                    $_EXTKEY = substr($v['ctrl']['title'], 8);
+                                $title = (string)($v['ctrl']['title'] ?? '');
+                                if (strpos($title, 'LLL:EXT:') === 0) {
+                                    $_EXTKEY = substr($title, 8);
                                     $_EXTKEY = substr($_EXTKEY, 0, strpos($_EXTKEY, '/'));
                                     if ($_EXTKEY !== '') {
                                         // First try to get localisation of extension title
-                                        $temp = explode(':', substr($v['ctrl']['title'], 9 + strlen($_EXTKEY)));
+                                        $temp = explode(':', substr($title, 9 + strlen($_EXTKEY)));
                                         $langFile = $temp[0];
                                         $thisTitle = $lang->sL('LLL:EXT:' . $_EXTKEY . '/' . $langFile . ':extension.title');
                                         // If no localisation available, read title from ext_emconf.php

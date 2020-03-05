@@ -13,14 +13,10 @@
 		"sort-packages": true
 	},
 	"require": {
-		"typo3/cms-core": "9.5.4"
+		"typo3/cms-core": "9.5.14"
 	},
 	"conflict": {
 		"typo3/cms": "*"
-	},
-	"replace": {
-		"about": "*",
-		"aboutmodules": "*"
 	},
 	"extra": {
 		"typo3/cms": {

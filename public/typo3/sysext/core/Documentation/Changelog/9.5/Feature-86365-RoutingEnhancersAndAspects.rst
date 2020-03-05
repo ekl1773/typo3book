@@ -10,16 +10,16 @@ See :issue:`86365`
 Description
 ===========
 
-Page-based routing is now flexible by adding enhancers to Routes that are generated or resolved with parameters, which
+Page-based routing is now flexible by adding enhancers to routes that are generated or resolved with parameters, which
 were previously appended as GET parameters.
 
 An enhancer creates variants of a specific page-base route for a specific purpose (e.g. one plugin, one Extbase plugin)
-and enhance the existing route path which can contain flexible values, so-called "placeholders".
+and enhances the existing route path which can contain flexible values, so-called "placeholders".
 
-On top, aspects can be registered to a specific enhancer to modify a specific placeholder, like static speaking names
+On top, aspects can be registered to a specific enhancer to modify a specific placeholder, like static human readable names
 within the route path, or dynamically generated.
 
-To give you an overview of what the distinction is, we take a regular page which is available under
+To give you an overview of what the distinction is, we take a regular page which is available at
 
 `https://www.example.com/path-to/my-page`
 
@@ -55,25 +55,27 @@ TYPO3 comes with the following enhancers out of the box:
 
 Custom enhancers can be registered by adding an entry to an extensions :file:`ext_localconf.php`.
 
-:php:`$GLOBALS['TYPO3_CONF_VARS']['SYS']['routing']['CustomPlugin'] = \MyVendor\MyPackage\Routing\CustomEnhancer::class;`
+:php:`$GLOBALS['TYPO3_CONF_VARS']['SYS']['routing']['enhancers']['CustomEnhancer'] = \MyVendor\MyPackage\Routing\CustomEnhancer::class;`
 
 Within a configuration, an enhancer always evaluates the following properties:
 
 * `type` - the short name of the enhancer as registered within :php:`$TYPO3_CONF_VARS`. This is mandatory.
-* `limitToPages` - an array of page IDs where this enhancer should be called. This is optional. This property (array)
+* `limitToPages` - an array of page IDs where this enhancer should be called. This is **optional**. This property (array)
   evaluates to only trigger an enhancer for specific pages. In case of special plugin pages it is
   useful to only enhance pages with IDs, to speed up performance for building page routes of all other pages.
 
 Simple Enhancer
 ---------------
 
-The Simple Enhancer works with various route arguments to map them to a argument to be used later-on.
+The Simple Enhancer works with various route arguments to map them to an argument to be used later-on.
 
 `index.php?id=13&category=241&tag=Benni`
 results in
-`https://www.example.com/path-to/my-page/241/Benni`
+`https://www.example.com/path-to/my-page/show-by-category/241/Benni`
 
-The configuration looks like this::
+The configuration looks like this:
+
+.. code-block:: yaml
 
    routeEnhancers:
      # Unique name for the enhancers, used internally for referencing
@@ -84,8 +86,8 @@ The configuration looks like this::
        defaults:
          tag: ''
        requirements:
-         category_id: '[0-9]{1..3}'
-         tag: '^[a-zA-Z0-9].*$'
+         category_id: '[0-9]{1,3}'
+         tag: '[a-zA-Z0-9].*'
        _arguments:
          category_id: 'category'
 
@@ -114,7 +116,9 @@ Plugin Enhancer
 The Plugin Enhancer works with plugins on a page that are commonly known as `Pi-Based Plugins`, where previously
 the following GET/POST variables were used:
 
-   `index.php?id=13&tx_felogin_pi1[forgot]=1&&tx_felogin_pi1[user]=82&tx_felogin_pi1[hash]=ABCDEFGHIJKLMNOPQRSTUVWXYZ012345`
+   * `index.php?id=13&tx_felogin_pi1[forgot]=1` (form to request token)
+   * `index.php?id=13&tx_felogin_pi1[user]=82&tx_felogin_pi1[hash]=12345679%7CABCDEFGHIJKLMNOPQRSTUVWXYZ012345`
+     (form to actually recover password, `%7C` is URL-encoded pipe character `|`)
 
 The base for the plugin enhancer is to configure a so-called "namespace", in this case `tx_felogin_pi1` - the plugin's
 namespace.
@@ -122,23 +126,33 @@ namespace.
 The Plugin Enhancer explicitly sets exactly one additional variant for a specific use-case. In case of Frontend Login,
 we would need to set up multiple configurations of Plugin Enhancer for forgot and recover passwords.
 
-::
+.. code-block:: yaml
 
    routeEnhancers:
-     ForgotPassword:
+     ForgotPasswordForm:
        type: Plugin
        limitToPages: [13]
-       routePath: '/forgot-password/{user}/{hash}'
+       routePath: '/forgot-password/{forgot}'
        namespace: 'tx_felogin_pi1'
        defaults:
-         forgot: "1"
+         forgot: '1'
        requirements:
-         user: '[0-9]{1..3}'
-         hash: '^[a-zA-Z0-9]{32}$'
+         forgot: '1'
+     ForgotPasswordRecover:
+       type: Plugin
+       limitToPages: [13]
+       routePath: '/forgot-password/{user}/{forgothash}'
+       namespace: 'tx_felogin_pi1'
+       requirements:
+         user: '[0-9]{1,3}'
+         forgothash: '\d+\|[[:xdigit:]]{32}'
 
-If a URL is generated with the given parameters to link to a page, the result will look like this:
+If URLs are generated with the given parameters to link to a page, the results will look like this:
 
-   `https://www.example.com/path-to/my-page/forgot-password/82/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345`
+   * `https://www.example.com/path-to/my-page/forgot-password`
+     (for `index.php?id=13&tx_felogin_pi1[forgot]=1`)
+   * `https://www.example.com/path-to/my-page/forgot-password/82/12345679%7CABCDEFGHIJKLMNOPQRSTUVWXYZ012345`
+     (for `index.php?id=13&tx_felogin_pi1[user]=82&tx_felogin_pi1[hash]=12345679%7CABCDEFGHIJKLMNOPQRSTUVWXYZ012345`)
 
 If the input given to generate the URL does not meet the requirements, the route enhancer does not offer the
 variant and the parameters are added to the URL as regular query parameters. If e.g. the user parameter would be more
@@ -154,7 +168,7 @@ Extbase Plugin Enhancer
 -----------------------
 
 When creating extbase plugins, it is very common to have multiple controller/action combinations. The Extbase Plugin
-Enhancer is therefore an extension to the regular Plugin Enhancer, except for the functionality that multiple variants
+Enhancer is therefore an extension to the regular Plugin Enhancer, providing the functionality that multiple variants
 are generated, typically built on the amount of controller/action pairs.
 
 The `namespace` option is omitted, as this is built with `extension` and `plugin` name.
@@ -173,7 +187,7 @@ And generate the following URLs
 * `https://www.example.com/path-to/my-page/detail/13`
 * `https://www.example.com/path-to/my-page/archive/2018/8`
 
-::
+.. code-block:: yaml
 
    routeEnhancers:
      NewsPlugin:
@@ -184,11 +198,11 @@ And generate the following URLs
        routes:
          - { routePath: '/list/{page}', _controller: 'News::list', _arguments: {'page': '@widget_0/currentPage'} }
          - { routePath: '/tag/{tag_name}', _controller: 'News::list', _arguments: {'tag_name': 'overwriteDemand/tags'}}
-         - { routePath: '/blog/{news_title}', _controller: 'News::detail', _arguments: {'news_title': 'news'} }
+         - { routePath: '/detail/{news_title}', _controller: 'News::detail', _arguments: {'news_title': 'news'} }
          - { routePath: '/archive/{year}/{month}', _controller: 'News::archive' }
        defaultController: 'News::list'
        defaults:
-         page: '0'
+         page: '1'
        requirements:
          page: '\d+'
 
@@ -212,6 +226,15 @@ the terms "Mapper" and "Modifier" will pop up, depending on the different cases.
 Aspects are registered within one single enhancer configuration with the option `aspects` and can be used with any
 enhancer.
 
+.. note::
+   Values in `defaults` and `requirements` always focus on corresponding internal raw values and not and
+   generated route values.
+
+.. note::
+   `requirements` are ignored for route variables having a corresponding setting in `aspects`. Imagine there
+   would be an aspect that is mapping internal value `1` to route value `one` and vice verse - it is not possible
+   to explicitly define the `requirements` for this case - which is why `aspects` take precedence.
+
 Let's start with some simpler examples first:
 
 
@@ -220,11 +243,11 @@ StaticValueMapper
 
 The StaticValueMapper replaces values simply on a 1:1 mapping list of an argument into a speaking segment, useful
 for a checkout process to define the steps into "cart", "shipping", "billing", "overview" and "finish", or in a
-simpler example to create speaking segments for all available months.
+simpler example to create human readable segments for all available months.
 
 The configuration could look like this:
 
-::
+.. code-block:: yaml
 
    routeEnhancers:
      NewsArchive:
@@ -255,12 +278,12 @@ The configuration could look like this:
              december: 12
 
 
-You'll see the placeholder "month" where the aspect replaces the value to a speaking segment.
+You'll see the placeholder "month" where the aspect replaces the value to a human readable url path segment.
 
 It is possible to add an optional `localeMap` to that aspect to use the locale of a value to use in multi-language
 setups.
 
-::
+.. code-block:: yaml
 
     routeEnhancers:
       NewsArchive:
@@ -313,7 +336,9 @@ The enhanced part of a route path could be `/archive/{year}/{month}` - however, 
 possible to rename `/archive/` depending on the language that is given for this page translation. This modifier is a
 good example where a route path is modified but is not affected by arguments.
 
-The configuration could look like this::
+The configuration could look like this:
+
+.. code-block:: yaml
 
    routeEnhancers:
      NewsArchive:
@@ -342,9 +367,9 @@ StaticRangeMapper
 -----------------
 
 A static range mapper allows to avoid the `cHash` and narrow down the available possibilities for a placeholder,
-and to explicitly define a range for a value, which is recommended for all kinds of pagination functionalities.
+and to explicitly define a range for a value, which is recommended for all kinds of pagination functionality.
 
-::
+.. code-block:: yaml
 
    routeEnhancers:
      NewsPlugin:
@@ -372,7 +397,9 @@ PersistedAliasMapper
 --------------------
 
 If an extension ships with a slug field, or a different field used for the speaking URL path, this database field
-can be used to build the URL::
+can be used to build the URL:
+
+.. code-block:: yaml
 
     routeEnhancers:
       NewsPlugin:
@@ -408,7 +435,7 @@ When a placeholder should be fetched from multiple fields of the database, the P
 It allows to combine various fields into one variable, ensuring a unique value by e.g. adding the UID to the field
 without having the need of adding a custom slug field to the system.
 
-::
+.. code-block:: yaml
 
    routeEnhancers:
      Blog:

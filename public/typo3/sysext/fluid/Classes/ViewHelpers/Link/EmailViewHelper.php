@@ -17,25 +17,39 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
 
 /**
- * Email link view helper.
- * Generates an email link incorporating TYPO3s spamProtectEmailAddresses-settings.
+ * Email link ViewHelper.
+ * Generates an email link incorporating TYPO3s `spamProtectEmailAddresses`_ TypoScript setting.
  *
- * = Examples
+ * .. _spamProtectEmailAddresses: https://docs.typo3.org/m/typo3/reference-typoscript/master/en-us/Setup/Config/Index.html#spamprotectemailaddresses
  *
- * <code title="basic email link">
- * <f:link.email email="foo@bar.tld" />
- * </code>
- * <output>
- * <a href="javascript:linkTo_UnCryptMailto('ocknvq,hqqBdct0vnf');">foo(at)bar.tld</a>
- * (depending on your spamProtectEmailAddresses-settings)
- * </output>
+ * Examples
+ * ========
  *
- * <code title="Email link with custom linktext">
- * <f:link.email email="foo@bar.tld">some custom content</f:link.email>
- * </code>
- * <output>
- * <a href="javascript:linkTo_UnCryptMailto('ocknvq,hqqBdct0vnf');">some custom content</a>
- * </output>
+ * Basic email link
+ * ----------------
+ *
+ * ::
+ *
+ *    <f:link.email email="foo@bar.tld" />
+ *
+ * Output::
+ *
+ *    <a href="javascript:linkTo_UnCryptMailto('ocknvq,hqqBdct0vnf');">foo(at)bar.tld</a>
+ *
+ * Depending on `spamProtectEmailAddresses`_ setting.
+ *
+ * Email link with custom linktext
+ * -------------------------------
+ *
+ * ::
+ *
+ *    <f:link.email email="foo@bar.tld">some custom content</f:link.email>
+ *
+ * Output::
+ *
+ *    <a href="javascript:linkTo_UnCryptMailto('ocknvq,hqqBdct0vnf');">some custom content</a>
+ *
+ * Depending on `spamProtectEmailAddresses`_ setting.
  */
 class EmailViewHelper extends AbstractTagBasedViewHelper
 {

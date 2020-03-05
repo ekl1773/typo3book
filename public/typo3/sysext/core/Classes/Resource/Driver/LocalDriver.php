@@ -75,7 +75,8 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $this->capabilities =
             ResourceStorage::CAPABILITY_BROWSABLE
             | ResourceStorage::CAPABILITY_PUBLIC
-            | ResourceStorage::CAPABILITY_WRITABLE;
+            | ResourceStorage::CAPABILITY_WRITABLE
+            | ResourceStorage::CAPABILITY_HIERARCHICAL_IDENTIFIERS;
     }
 
     /**
@@ -89,6 +90,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     public function mergeConfigurationCapabilities($capabilities)
     {
         $this->capabilities &= $capabilities;
+
         return $this->capabilities;
     }
 
@@ -228,16 +230,18 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     {
         $parentFolderIdentifier = $this->canonicalizeAndCheckFolderIdentifier($parentFolderIdentifier);
         $newFolderName = trim($newFolderName, '/');
-        if ($recursive == false) {
+        if ($recursive === false) {
             $newFolderName = $this->sanitizeFileName($newFolderName);
-            $newIdentifier = $parentFolderIdentifier . $newFolderName . '/';
+            $newIdentifier = $this->canonicalizeAndCheckFolderIdentifier($parentFolderIdentifier . $newFolderName . '/');
             GeneralUtility::mkdir($this->getAbsolutePath($newIdentifier));
         } else {
             $parts = GeneralUtility::trimExplode('/', $newFolderName);
             $parts = array_map([$this, 'sanitizeFileName'], $parts);
             $newFolderName = implode('/', $parts);
-            $newIdentifier = $parentFolderIdentifier . $newFolderName . '/';
-            GeneralUtility::mkdir_deep($this->getAbsolutePath($parentFolderIdentifier) . '/' . $newFolderName);
+            $newIdentifier = $this->canonicalizeAndCheckFolderIdentifier(
+                $parentFolderIdentifier . $newFolderName . '/'
+            );
+            GeneralUtility::mkdir_deep($this->getAbsolutePath($newIdentifier));
         }
         return $newIdentifier;
     }

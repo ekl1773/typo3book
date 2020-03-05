@@ -124,6 +124,14 @@ class ExtensionManagementUtility
             trigger_error('EXT:version has been moved into EXT:workspaces, you should check against "workspaces", as this might lead to unexpected behaviour in the future.', E_USER_DEPRECATED);
             $key = 'workspaces';
         }
+        if ($key === 'sv') {
+            trigger_error('EXT:sv has been moved into EXT:core, you should remove your check as code is always loaded, as this might lead to unexpected behaviour in the future.', E_USER_DEPRECATED);
+            return true;
+        }
+        if ($key === 'saltedpasswords') {
+            trigger_error('EXT:saltedpasswords has been moved into EXT:core, you should remove your check as code is always loaded, as this might lead to unexpected behaviour in the future.', E_USER_DEPRECATED);
+            return true;
+        }
         if ($exitOnError !== null) {
             trigger_error('Calling ExtensionManagementUtility::isLoaded() with a second argument via "exitOnError" will be removed in TYPO3 v10.0, handle an unloaded package yourself in the future.', E_USER_DEPRECATED);
         }
@@ -1217,10 +1225,11 @@ class ExtensionManagementUtility
      * Adds an entry to the list of plugins in content elements of type "Insert plugin"
      * Takes the $itemArray (label, value[,icon]) and adds to the items-array of $GLOBALS['TCA'][tt_content] elements with CType "listtype" (or another field if $type points to another fieldname)
      * If the value (array pos. 1) is already found in that items-array, the entry is substituted, otherwise the input array is added to the bottom.
-     * Use this function to add a frontend plugin to this list of plugin-types - or more generally use this function to add an entry to any selectorbox/radio-button set in the TCEFORMS
+     * Use this function to add a frontend plugin to this list of plugin-types - or more generally use this function to add an entry to any selectorbox/radio-button set in the FormEngine
+     *
      * FOR USE IN files in Configuration/TCA/Overrides/*.php Use in ext_tables.php FILES may break the frontend.
      *
-     * @param array $itemArray Numerical array: [0] => Plugin label, [1] => Underscored extension key, [2] => Path to plugin icon relative to TYPO3_mainDir
+     * @param array $itemArray Numerical array: [0] => Plugin label, [1] => Plugin identifier / plugin key, ideally prefixed with a extension-specific name (e.g. "events2_list"), [2] => Path to plugin icon relative to TYPO3_mainDir
      * @param string $type Type (eg. "list_type") - basically a field from "tt_content" table
      * @param string $extensionKey The extension key
      * @throws \RuntimeException
@@ -1311,7 +1320,7 @@ class ExtensionManagementUtility
      * @param string $type See description above
      * @param bool $cacheable If $cached is set as USER content object (cObject) is created - otherwise a USER_INT object is created.
      */
-    public static function addPItoST43($key, $_, $suffix = '', $type = 'list_type', $cacheable = false)
+    public static function addPItoST43($key, $_ = '', $suffix = '', $type = 'list_type', $cacheable = false)
     {
         $cN = self::getCN($key);
         // General plugin

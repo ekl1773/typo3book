@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Core\Site\Entity;
  */
 
 use Psr\Http\Message\UriInterface;
+use Symfony\Component\ExpressionLanguage\SyntaxError;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Error\PageErrorHandler\FluidPageErrorHandler;
 use TYPO3\CMS\Core\Error\PageErrorHandler\InvalidPageErrorHandlerException;
@@ -95,28 +96,21 @@ class Site implements SiteInterface
                 'direction' => '',
             ]
         ];
-        $baseUrl = $configuration['base'] ?? '';
-        if (isset($configuration['baseVariants']) && is_array($configuration['baseVariants'])) {
-            $expressionLanguageResolver = GeneralUtility::makeInstance(
-                Resolver::class,
-                'site',
-                []
-            );
-            foreach ($configuration['baseVariants'] as $baseVariant) {
-                $result = $expressionLanguageResolver->evaluate($baseVariant['condition']);
-                if ($result) {
-                    $baseUrl = $baseVariant['base'];
-                    break;
-                }
-            }
-        }
+        $baseUrl = $this->resolveBaseWithVariants(
+            $configuration['base'] ?? '',
+            $configuration['baseVariants'] ?? null
+        );
         $this->base = new Uri($this->sanitizeBaseUrl($baseUrl));
 
         foreach ($configuration['languages'] as $languageConfiguration) {
             $languageUid = (int)$languageConfiguration['languageId'];
             // site language has defined its own base, this is the case most of the time.
             if (!empty($languageConfiguration['base'])) {
-                $base = new Uri($this->sanitizeBaseUrl($languageConfiguration['base']));
+                $base = $this->resolveBaseWithVariants(
+                    $languageConfiguration['base'],
+                    $languageConfiguration['baseVariants'] ?? null
+                );
+                $base = new Uri($this->sanitizeBaseUrl($base));
                 // no host given by the language-specific base, so lets prefix the main site base
                 if ($base->getScheme() === null && $base->getHost() === '') {
                     $base = rtrim((string)$this->base, '/') . '/' . ltrim((string)$base, '/');
@@ -146,6 +140,36 @@ class Site implements SiteInterface
             unset($errorHandlingConfiguration['errorCode']);
             $this->errorHandlers[(int)$code] = $errorHandlingConfiguration;
         }
+    }
+
+    /**
+     * Checks if the base has variants, and takes the first variant which matches an expression.
+     *
+     * @param string $baseUrl
+     * @param array|null $baseVariants
+     * @return string
+     */
+    protected function resolveBaseWithVariants(string $baseUrl, ?array $baseVariants): string
+    {
+        if (!empty($baseVariants)) {
+            $expressionLanguageResolver = GeneralUtility::makeInstance(
+                Resolver::class,
+                'site',
+                []
+            );
+            foreach ($baseVariants as $baseVariant) {
+                try {
+                    if ($expressionLanguageResolver->evaluate($baseVariant['condition'])) {
+                        $baseUrl = $baseVariant['base'];
+                        break;
+                    }
+                } catch (SyntaxError $e) {
+                    // silently fail and do not evaluate
+                    // no logger here, as Site is currently cached and serialized
+                }
+            }
+        }
+        return $baseUrl;
     }
 
     /**
@@ -242,7 +266,7 @@ class Site implements SiteInterface
         if ($includeAllLanguagesFlag && $user->checkLanguageAccess(-1)) {
             $availableLanguages[-1] = new SiteLanguage(-1, '', $this->getBase(), [
                 'title' => $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages'),
-                'flag' => 'flag-multiple'
+                'flag' => 'flags-multiple'
             ]);
         }
 
@@ -267,7 +291,7 @@ class Site implements SiteInterface
     public function getErrorHandler(int $statusCode): PageErrorHandlerInterface
     {
         $errorHandlerConfiguration = $this->errorHandlers[$statusCode] ?? null;
-        switch ($errorHandlerConfiguration['errorHandler']) {
+        switch ($errorHandlerConfiguration['errorHandler'] ?? null) {
             case self::ERRORHANDLER_TYPE_FLUID:
                 return GeneralUtility::makeInstance(FluidPageErrorHandler::class, $statusCode, $errorHandlerConfiguration);
             case self::ERRORHANDLER_TYPE_PAGE:
@@ -322,7 +346,7 @@ class Site implements SiteInterface
     {
         // no protocol ("//") and the first part is no "/" (path), means that this is a domain like
         // "www.domain.com/blabla", and we want to ensure that this one then gets a "no-scheme agnostic" part
-        if (!empty($base) && strpos($base, '//') === false && $base{0} !== '/') {
+        if (!empty($base) && strpos($base, '//') === false && $base[0] !== '/') {
             // either a scheme is added, or no scheme but with domain, or a path which is not absolute
             // make the base prefixed with a slash, so it is recognized as path, not as domain
             // treat as path

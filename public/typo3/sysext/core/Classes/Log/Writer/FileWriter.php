@@ -154,7 +154,7 @@ class FileWriter extends AbstractWriter
             if (isset($recordData['exception']) && $recordData['exception'] instanceof \Exception) {
                 $recordData['exception'] = (string)$recordData['exception'];
             }
-            $data = '- ' . json_encode($recordData);
+            $data = '- ' . json_encode($recordData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         $message = sprintf(
@@ -217,13 +217,19 @@ class FileWriter extends AbstractWriter
         if (file_exists($this->logFile)) {
             return;
         }
-        $logFileDirectory = PathUtility::dirname($this->logFile);
-        if (!@is_dir($logFileDirectory)) {
-            GeneralUtility::mkdir_deep($logFileDirectory);
-            // create .htaccess file if log file is within the site path
-            if (PathUtility::getCommonPrefix([Environment::getPublicPath() . '/', $logFileDirectory]) === (Environment::getPublicPath() . '/')) {
-                // only create .htaccess, if we created the directory on our own
-                $this->createHtaccessFile($logFileDirectory . '/.htaccess');
+
+        // skip mkdir if logFile refers to any scheme but vfs://, file:// or empty
+        $scheme = parse_url($this->logFile, PHP_URL_SCHEME);
+        if ($scheme === null || $scheme === 'file' || $scheme === 'vfs' || GeneralUtility::isAbsPath($this->logFile)) {
+            // remove file:/ before creating the directory
+            $logFileDirectory = PathUtility::dirname(preg_replace('#^file:/#', '', $this->logFile));
+            if (!@is_dir($logFileDirectory)) {
+                GeneralUtility::mkdir_deep($logFileDirectory);
+                // create .htaccess file if log file is within the site path
+                if (PathUtility::getCommonPrefix([Environment::getPublicPath() . '/', $logFileDirectory]) === (Environment::getPublicPath() . '/')) {
+                    // only create .htaccess, if we created the directory on our own
+                    $this->createHtaccessFile($logFileDirectory . '/.htaccess');
+                }
             }
         }
         // create the log file
@@ -270,24 +276,5 @@ class FileWriter extends AbstractWriter
             $namePart = $this->logFileInfix . '_' . $namePart;
         }
         return Environment::getVarPath() . sprintf($this->defaultLogFileTemplate, $namePart);
-    }
-
-    /**
-     * Allow serialization of logger - reinitialize log file on unserializing
-     */
-    public function __wakeup()
-    {
-        self::$logFileHandlesCount[$this->logFile]++;
-        $this->setLogFile($this->logFile ?: $this->getDefaultLogFileName());
-    }
-
-    /**
-     * Property 'logFile' should be kept
-     *
-     * @return array
-     */
-    public function __sleep(): array
-    {
-        return ['logFile'];
     }
 }

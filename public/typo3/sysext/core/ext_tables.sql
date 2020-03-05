@@ -116,7 +116,8 @@ CREATE TABLE pages (
 
 	KEY alias (alias),
 	KEY determineSiteRoot (is_siteroot),
-	KEY language_identifier (l10n_parent,sys_language_uid)
+	KEY language_identifier (l10n_parent,sys_language_uid),
+	KEY slug (slug(127))
 );
 
 #
@@ -171,7 +172,7 @@ CREATE TABLE sys_filemounts (
 # Table structure for table 'sys_file_storage'
 #
 CREATE TABLE sys_file_storage (
-	name varchar(30) DEFAULT '' NOT NULL,
+	name varchar(255) DEFAULT '' NOT NULL,
 	driver tinytext,
 	configuration text,
 	is_default tinyint(4) DEFAULT '0' NOT NULL,

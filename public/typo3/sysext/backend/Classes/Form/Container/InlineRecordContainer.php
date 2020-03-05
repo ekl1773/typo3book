@@ -173,6 +173,8 @@ class InlineRecordContainer extends AbstractContainer
             // If this record should be shown collapsed
             $class = $data['isInlineChildExpanded'] ? 'panel-visible' : 'panel-collapsed';
         }
+        $hiddenFieldHtml = implode(LF, $resultArray['additionalHiddenFields'] ?? []);
+
         if ($inlineConfig['renderFieldsOnly']) {
             // Render "body" part only
             $html = $html . $combinationHtml;
@@ -185,8 +187,14 @@ class InlineRecordContainer extends AbstractContainer
                 $class .= ' t3-form-field-container-inline-hidden';
             }
             $class .= ($isNewRecord ? ' inlineIsNewRecord' : '');
+            $tableUniqueOriginalValue = '';
+            if (isset($data['inlineData']['unique'][$domObjectId . '-' . $foreignTable]['used'][$record['uid']])) {
+                $uniqueValueValues = $data['inlineData']['unique'][$domObjectId . '-' . $foreignTable]['used'][$record['uid']];
+                // in case of site_language we don't have the full form engine options, so fallbacks need to be taken into account
+                $tableUniqueOriginalValue = ($uniqueValueValues['table'] ?? $foreignTable) . '_' . ($uniqueValueValues['uid'] ?? $uniqueValueValues);
+            }
             $html = '
-				<div class="panel panel-default panel-condensed ' . trim($class) . '" id="' . htmlspecialchars($objectId) . '_div">
+				<div class="panel panel-default panel-condensed ' . trim($class) . '" id="' . htmlspecialchars($objectId) . '_div" data-table-unique-original-value="' . htmlspecialchars($tableUniqueOriginalValue) . '">
 					<div class="panel-heading" data-toggle="formengine-inline" id="' . htmlspecialchars($objectId) . '_header" data-expandSingle="' . ($inlineConfig['appearance']['expandSingle'] ? 1 : 0) . '">
 						<div class="form-irre-header">
 							<div class="form-irre-header-cell form-irre-header-icon">
@@ -195,7 +203,7 @@ class InlineRecordContainer extends AbstractContainer
 							' . $this->renderForeignRecordHeader($data) . '
 						</div>
 					</div>
-					<div class="panel-collapse" id="' . htmlspecialchars($objectId) . '_fields">' . $html . $combinationHtml . '</div>
+					<div class="panel-collapse" id="' . htmlspecialchars($objectId) . '_fields">' . $html . $hiddenFieldHtml . $combinationHtml . '</div>
 				</div>';
         }
 
@@ -237,6 +245,13 @@ class InlineRecordContainer extends AbstractContainer
     {
         $childData = $data['combinationChild'];
         $parentConfig = $data['inlineParentConfig'];
+
+        // If field is set to readOnly, set all fields of the relation to readOnly as well
+        if (isset($parentConfig['readOnly']) && $parentConfig['readOnly']) {
+            foreach ($childData['processedTca']['columns'] as $columnName => $columnConfiguration) {
+                $childData['processedTca']['columns'][$columnName]['config']['readOnly'] = true;
+            }
+        }
 
         $resultArray = $this->initializeResultArray();
 
@@ -400,6 +415,7 @@ class InlineRecordContainer extends AbstractContainer
             'locked' => '',
         ];
         $isNewItem = strpos($rec['uid'], 'NEW') === 0;
+        $isParentReadOnly = isset($inlineConfig['readOnly']) && $inlineConfig['readOnly'];
         $isParentExisting = MathUtility::canBeInterpretedAsInteger($data['inlineParentUid']);
         $tcaTableCtrl = $GLOBALS['TCA'][$foreignTable]['ctrl'];
         $tcaTableCols = $GLOBALS['TCA'][$foreignTable]['columns'];
@@ -450,7 +466,7 @@ class InlineRecordContainer extends AbstractContainer
             }
         }
         // If the table is NOT a read-only table, then show these links:
-        if (!$tcaTableCtrl['readOnly'] && !$data['isInlineDefaultLanguageRecordInLocalizedParentContext']) {
+        if (!$isParentReadOnly && !$tcaTableCtrl['readOnly'] && !$data['isInlineDefaultLanguageRecordInLocalizedParentContext']) {
             // "New record after" link (ONLY if the records in the table are sorted by a "sortby"-row or if default values can depend on previous record):
             if ($enabledControls['new'] && ($enableManualSorting || $tcaTableCtrl['useColumnsForDefaultValues'])) {
                 if (!$isPagesTable && $calcPerms & Permission::CONTENT_EDIT || $isPagesTable && $calcPerms & Permission::PAGE_NEW) {

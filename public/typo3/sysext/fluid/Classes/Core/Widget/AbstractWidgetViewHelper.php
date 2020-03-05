@@ -14,8 +14,10 @@ namespace TYPO3\CMS\Fluid\Core\Widget;
  * The TYPO3 project - inspiring people to share!
  */
 
+use TYPO3Fluid\Fluid\Component\ComponentInterface;
 use TYPO3Fluid\Fluid\Core\Compiler\TemplateCompiler;
 use TYPO3Fluid\Fluid\Core\Parser\SyntaxTree\ViewHelperNode;
+use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 
 /**
@@ -120,6 +122,38 @@ abstract class AbstractWidgetViewHelper extends AbstractViewHelper
     }
 
     /**
+     * Initialize the arguments of the ViewHelper, and call the render() method of the ViewHelper.
+     *
+     * @param RenderingContextInterface $renderingContext
+     * @return string the rendered ViewHelper.
+     * @internal
+     */
+    public function evaluate(RenderingContextInterface $renderingContext)
+    {
+        $this->renderingContext = $renderingContext;
+        $this->getArguments()->setRenderingContext($renderingContext);
+        $this->initializeWidgetContext();
+        return $this->callRenderMethod();
+    }
+
+    /**
+     * Stores the syntax tree child nodes in the Widget Context, so they can be
+     * rendered with <f:widget.renderChildren> lateron.
+     *
+     * @param RenderingContextInterface $renderingContext
+     * @return ComponentInterface
+     * @internal
+     */
+    public function onClose(RenderingContextInterface $renderingContext): ComponentInterface
+    {
+        $node = parent::onClose($renderingContext);
+        $rootNode = $this->objectManager->get(\TYPO3Fluid\Fluid\Core\Parser\SyntaxTree\RootNode::class);
+        $rootNode->setChildren($this->getChildren());
+        $this->widgetContext->setViewHelperChildNodes($rootNode, $renderingContext);
+        return $node;
+    }
+
+    /**
      * Initialize the Widget Context, before the Render method is called.
      */
     private function initializeWidgetContext()
@@ -127,8 +161,10 @@ abstract class AbstractWidgetViewHelper extends AbstractViewHelper
         $this->widgetContext->setWidgetConfiguration($this->getWidgetConfiguration());
         $this->initializeWidgetIdentifier();
         $this->widgetContext->setControllerObjectName(get_class($this->controller));
+        $vendorName = $this->renderingContext->getControllerContext()->getRequest()->getControllerVendorName();
         $extensionName = $this->renderingContext->getControllerContext()->getRequest()->getControllerExtensionName();
         $pluginName = $this->renderingContext->getControllerContext()->getRequest()->getPluginName();
+        $this->widgetContext->setParentVendorName($vendorName);
         $this->widgetContext->setParentExtensionName($extensionName);
         $this->widgetContext->setParentPluginName($pluginName);
         $pluginNamespace = $this->extensionService->getPluginNamespace($extensionName, $pluginName);
@@ -218,9 +254,10 @@ abstract class AbstractWidgetViewHelper extends AbstractViewHelper
      */
     private function initializeWidgetIdentifier()
     {
-        $widgetCounter = $this->viewHelperVariableContainer->get(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper::class, 'nextWidgetNumber', 0);
+        $viewHelperVariableContainer = $this->renderingContext->getViewHelperVariableContainer();
+        $widgetCounter = $viewHelperVariableContainer->get(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper::class, 'nextWidgetNumber', 0);
         $widgetIdentifier = '@widget_' . ((isset($this->arguments['customWidgetId']) && $this->arguments['customWidgetId'] !== null) ? $this->arguments['customWidgetId'] . '_' : '') . $widgetCounter;
-        $this->viewHelperVariableContainer->addOrUpdate(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper::class, 'nextWidgetNumber', $widgetCounter + 1);
+        $viewHelperVariableContainer->addOrUpdate(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper::class, 'nextWidgetNumber', $widgetCounter + 1);
         $this->widgetContext->setWidgetIdentifier($widgetIdentifier);
     }
 

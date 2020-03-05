@@ -23,9 +23,15 @@ use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Registry;
 use TYPO3\CMS\Core\Resource\Driver\StreamableDriverInterface;
 use TYPO3\CMS\Core\Resource\Exception\ExistingTargetFileNameException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidHashException;
 use TYPO3\CMS\Core\Resource\Exception\InvalidTargetFolderException;
 use TYPO3\CMS\Core\Resource\Index\FileIndexRepository;
 use TYPO3\CMS\Core\Resource\OnlineMedia\Helpers\OnlineMediaHelperRegistry;
+use TYPO3\CMS\Core\Resource\Search\FileSearchDemand;
+use TYPO3\CMS\Core\Resource\Search\Result\DriverFilteredSearchResult;
+use TYPO3\CMS\Core\Resource\Search\Result\EmptyFileSearchResult;
+use TYPO3\CMS\Core\Resource\Search\Result\FileSearchResult;
+use TYPO3\CMS\Core\Resource\Search\Result\FileSearchResultInterface;
 use TYPO3\CMS\Core\Utility\Exception\NotImplementedMethodException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
@@ -179,7 +185,9 @@ class ResourceStorage implements ResourceStorageInterface
         $this->capabilities =
             ($this->storageRecord['is_browsable'] ?? null ? self::CAPABILITY_BROWSABLE : 0) |
             ($this->storageRecord['is_public'] ?? null ? self::CAPABILITY_PUBLIC : 0) |
-            ($this->storageRecord['is_writable'] ?? null ? self::CAPABILITY_WRITABLE : 0);
+            ($this->storageRecord['is_writable'] ?? null ? self::CAPABILITY_WRITABLE : 0) |
+            // Always let the driver decide whether to set this capability
+            self::CAPABILITY_HIERARCHICAL_IDENTIFIERS;
 
         $this->driver = $driver;
         $this->driver->setStorageUid($storageRecord['uid'] ?? null);
@@ -346,6 +354,41 @@ class ResourceStorage implements ResourceStorageInterface
     public function isBrowsable()
     {
         return $this->isOnline() && $this->hasCapability(self::CAPABILITY_BROWSABLE);
+    }
+
+    /**
+     * Returns TRUE if this storage stores folder structure in file identifiers.
+     *
+     * @return bool
+     */
+    public function hasHierarchicalIdentifiers(): bool
+    {
+        return $this->hasCapability(self::CAPABILITY_HIERARCHICAL_IDENTIFIERS);
+    }
+
+    /**
+     * Search for files in a storage based on given restrictions
+     * and a possibly given folder.
+     *
+     * @param FileSearchDemand $searchDemand
+     * @param Folder|null $folder
+     * @param bool $useFilters Whether storage filters should be applied
+     * @return FileSearchResultInterface
+     */
+    public function searchFiles(FileSearchDemand $searchDemand, Folder $folder = null, bool $useFilters = true): FileSearchResultInterface
+    {
+        $folder = $folder ?? $this->getRootLevelFolder();
+        if (!$folder->checkActionPermission('read')) {
+            return new EmptyFileSearchResult();
+        }
+
+        return new DriverFilteredSearchResult(
+            new FileSearchResult(
+                $searchDemand->withFolder($folder)
+            ),
+            $this->driver,
+            $useFilters ? $this->getFileAndFolderNameFilters() : []
+        );
     }
 
     /**
@@ -721,10 +764,12 @@ class ResourceStorage implements ResourceStorageInterface
 
     /**
      * @param ResourceInterface $fileOrFolder
+     * @deprecated This method will be removed without substitution, use the ResourceStorage API instead
      * @return bool
      */
     public function checkFileAndFolderNameFilters(ResourceInterface $fileOrFolder)
     {
+        trigger_error(__METHOD__ . ' is deprecated. This method will be removed without substitution, use the ResourceStorage API instead', \E_USER_DEPRECATED);
         foreach ($this->fileAndFolderNameFilters as $filter) {
             if (is_callable($filter)) {
                 $result = call_user_func($filter, $fileOrFolder->getName(), $fileOrFolder->getIdentifier(), $fileOrFolder->getParentFolder()->getIdentifier(), [], $this->driver);
@@ -774,9 +819,9 @@ class ResourceStorage implements ResourceStorageInterface
                 );
             }
             throw new Exception\InsufficientFolderAccessPermissionsException(
-                    'You are not allowed to access the given folder: "' . $folder->getName() . '"',
-                    1375955684
-                );
+                'You are not allowed to access the given folder: "' . $folder->getName() . '"',
+                1375955684
+            );
         }
     }
 
@@ -1231,6 +1276,7 @@ class ResourceStorage implements ResourceStorageInterface
      *
      * @param FileInterface $fileObject
      * @param string $hash
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InvalidHashException
      * @return string
      */
     public function hashFile(FileInterface $fileObject, $hash)
@@ -1243,12 +1289,16 @@ class ResourceStorage implements ResourceStorageInterface
      *
      * @param string $fileIdentifier
      * @param string $hash
-     *
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InvalidHashException
      * @return string
      */
     public function hashFileByIdentifier($fileIdentifier, $hash)
     {
-        return $this->driver->hash($fileIdentifier, $hash);
+        $hash = $this->driver->hash($fileIdentifier, $hash);
+        if (!is_string($hash) || $hash === '') {
+            throw new InvalidHashException('Hash has to be non-empty string.', 1551950301);
+        }
+        return $hash;
     }
 
     /**
@@ -2426,7 +2476,7 @@ class ResourceStorage implements ResourceStorageInterface
     public function getFolder($identifier, $returnInaccessibleFolderObject = false)
     {
         $data = $this->driver->getFolderInfoByIdentifier($identifier);
-        $folder = $this->getResourceFactoryInstance()->createFolderObject($this, $data['identifier'], $data['name']);
+        $folder = $this->getResourceFactoryInstance()->createFolderObject($this, $data['identifier'] ?? null, $data['name'] ?? null);
 
         try {
             $this->assureFolderReadPermission($folder);
@@ -3156,6 +3206,10 @@ class ResourceStorage implements ResourceStorageInterface
     protected function getNearestRecyclerFolder(FileInterface $file)
     {
         if ($file instanceof ProcessedFile) {
+            return null;
+        }
+        // if the storage is not browsable we cannot fetch the parent folder of the file so no recycler handling is possible
+        if (!$this->isBrowsable()) {
             return null;
         }
 

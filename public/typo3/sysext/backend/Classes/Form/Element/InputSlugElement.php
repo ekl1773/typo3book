@@ -166,8 +166,18 @@ class InputSlugElement extends AbstractFormElement
 
         [$commonElementPrefix] = GeneralUtility::revExplode('[', $parameterArray['itemFormElName'], 2);
         $validInputNamesToListenTo = [];
-        foreach ($config['generatorOptions']['fields'] ?? [] as $listenerFieldName) {
-            $validInputNamesToListenTo[$listenerFieldName] = $commonElementPrefix . '[' . htmlspecialchars($listenerFieldName) . ']';
+        $includeUidInValues = false;
+        foreach ($config['generatorOptions']['fields'] ?? [] as $fieldNameParts) {
+            if (is_string($fieldNameParts)) {
+                $fieldNameParts = GeneralUtility::trimExplode(',', $fieldNameParts);
+            }
+            foreach ($fieldNameParts as $listenerFieldName) {
+                if ($listenerFieldName === 'uid') {
+                    $includeUidInValues = true;
+                    continue;
+                }
+                $validInputNamesToListenTo[$listenerFieldName] = $commonElementPrefix . '[' . htmlspecialchars($listenerFieldName) . ']';
+            }
         }
         $parentPageId = $this->data['parentPageRow']['uid'] ?? 0;
         $signature = GeneralUtility::hmac(
@@ -197,6 +207,7 @@ class InputSlugElement extends AbstractFormElement
             'signature' => $signature,
             'command' => $this->data['command'],
             'parentPageId' => $parentPageId,
+            'includeUidInValues' => $includeUidInValues,
         ];
         $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/SlugElement' => '
             function(SlugElement) {
@@ -215,12 +226,17 @@ class InputSlugElement extends AbstractFormElement
      */
     protected function getPrefix(SiteInterface $site, int $requestLanguageId = 0): string
     {
-        $language = $site->getLanguageById($requestLanguageId);
-        $base = $language->getBase();
-        $baseUrl = (string)$base;
-        $baseUrl = rtrim($baseUrl, '/');
-        if (!empty($baseUrl) && empty($base->getScheme()) && $base->getHost() !== '') {
-            $baseUrl = 'http:' . $baseUrl;
+        try {
+            $language = ($requestLanguageId < 0) ? $site->getDefaultLanguage() : $site->getLanguageById($requestLanguageId);
+            $base = $language->getBase();
+            $baseUrl = (string)$base;
+            $baseUrl = rtrim($baseUrl, '/');
+            if (!empty($baseUrl) && empty($base->getScheme()) && $base->getHost() !== '') {
+                $baseUrl = 'http:' . $baseUrl;
+            }
+        } catch (\InvalidArgumentException $e) {
+            // No site / language found
+            $baseUrl = '';
         }
         return $baseUrl;
     }

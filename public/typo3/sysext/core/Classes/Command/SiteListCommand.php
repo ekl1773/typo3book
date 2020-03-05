@@ -50,7 +50,7 @@ class SiteListCommand extends Command
         if (empty($sites)) {
             $io->title('No sites configured');
             $io->note('Configure new sites in the "Sites" module.');
-            return;
+            return 0;
         }
 
         $io->title('All configured sites');
@@ -66,6 +66,8 @@ class SiteListCommand extends Command
         foreach ($sites as $site) {
             $baseUrls = [];
             $languages = [];
+            $locales = [];
+            $status = [];
             foreach ($site->getLanguages() as $language) {
                 $baseUrls[] = (string)$language->getBase();
                 $languages[] = sprintf(
@@ -90,5 +92,6 @@ class SiteListCommand extends Command
             );
         }
         $table->render();
+        return 0;
     }
 }

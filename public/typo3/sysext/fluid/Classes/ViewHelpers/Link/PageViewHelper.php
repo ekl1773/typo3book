@@ -17,33 +17,49 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
 
 /**
- * A view helper for creating links to TYPO3 pages.
+ * A ViewHelper for creating links to TYPO3 pages.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="link to the current page">
- * <f:link.page>page link</f:link.page>
- * </code>
- * <output>
- * <a href="index.php?id=123">page link</f:link.action>
- * (depending on the current page and your TS configuration)
- * </output>
+ * Link to the current page
+ * ------------------------
  *
- * <code title="query parameters">
- * <f:link.page pageUid="1" additionalParams="{foo: 'bar'}">page link</f:link.page>
- * </code>
- * <output>
- * <a href="index.php?id=1&foo=bar">page link</f:link.action>
- * (depending on your TS configuration)
- * </output>
+ * ::
  *
- * <code title="query parameters for extensions">
- * <f:link.page pageUid="1" additionalParams="{extension_key: {foo: 'bar'}}">page link</f:link.page>
- * </code>
- * <output>
- * <a href="index.php?id=1&extension_key[foo]=bar">page link</f:link.action>
- * (depending on your TS configuration)
- * </output>
+ *    <f:link.page>page link</f:link.page>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html">page link</a>
+ *
+ * Depending on current page, routing and page path configuration.
+ *
+ * Query parameters
+ * ----------------
+ *
+ * ::
+ *
+ *    <f:link.page pageUid="1" additionalParams="{foo: 'bar'}">page link</f:link.page>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?foo=bar">page link</a>
+ *
+ * Depending on current page, routing and page path configuration.
+ *
+ * Query parameters for extensions
+ * -------------------------------
+ *
+ * ::
+ *
+ *    <f:link.page pageUid="1" additionalParams="{extension_key: {foo: 'bar'}}">page link</f:link.page>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?extension_key[foo]=bar">page link</a>
+ *
+ * Depending on current page, routing and page path configuration.
  */
 class PageViewHelper extends AbstractTagBasedViewHelper
 {
@@ -107,6 +123,7 @@ class PageViewHelper extends AbstractTagBasedViewHelper
         if ((string)$uri !== '') {
             $this->tag->addAttribute('href', $uri);
             $this->tag->setContent($this->renderChildren());
+            $this->tag->forceClosingTag(true);
             $result = $this->tag->render();
         } else {
             $result = $this->renderChildren();

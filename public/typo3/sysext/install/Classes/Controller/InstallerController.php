@@ -22,11 +22,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Configuration\SiteConfiguration;
-use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\Argon2iPasswordHash;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\BcryptPasswordHash;
-use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashInterface;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\Pbkdf2PasswordHash;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PhpassPasswordHash;
@@ -116,7 +114,7 @@ class InstallerController
     public function checkEnvironmentAndFoldersAction(): ResponseInterface
     {
         return new JsonResponse([
-            'success' => @is_file(Environment::getLegacyConfigPath() . '/LocalConfiguration.php'),
+            'success' => @is_file(GeneralUtility::makeInstance(ConfigurationManager::class)->getLocalConfigurationFileLocation()),
         ]);
     }
 
@@ -566,7 +564,7 @@ class InstallerController
             }
         } else {
             return new JsonResponse([
-                'sucess' => true,
+                'success' => false,
                 'status' => [
                     new FlashMessage(
                         'You must select a database.',
@@ -797,7 +795,7 @@ page.10.value (
 page.100 =< styles.content.get',
                         'description' => 'This is an Empty Site Package TypoScript template.
 
-For each website you need a TypoScript template on the main page of your website (on the top level). For better maintenance all TypoScript should be extracted into external files via <INCLUDE_TYPOSCRIPT: source="FILE:EXT:site_myproject/Configuration/TypoScript/setup.typoscript">.'
+For each website you need a TypoScript template on the main page of your website (on the top level). For better maintenance all TypoScript should be extracted into external files via @import \'EXT:site_myproject/Configuration/TypoScript/setup.typoscript\''
                     ]
                 );
 

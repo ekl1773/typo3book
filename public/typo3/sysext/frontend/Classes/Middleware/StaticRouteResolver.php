@@ -22,6 +22,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\RequestFactory;
+use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Routing\InvalidRouteArgumentsException;
@@ -56,8 +57,7 @@ class StaticRouteResolver implements MiddlewareInterface
                 try {
                     [$content, $contentType] = $this->resolveByType($request, $site, $routeConfig['type'], $routeConfig);
                 } catch (InvalidRouteArgumentsException $e) {
-                    $content = 'Invalid route';
-                    $contentType = 'text/plain';
+                    return new Response('Invalid route', 404, ['Content-Type' => 'text/plain']);
                 }
 
                 return new HtmlResponse($content, 200, ['Content-Type' => $contentType]);
@@ -104,9 +104,16 @@ class StaticRouteResolver implements MiddlewareInterface
      */
     protected function getPageUri(ServerRequestInterface $request, Site $site, array $urlParams): string
     {
+        $parameters = [];
+        // Add additional parameters, if set via TypoLink
+        if (isset($urlParams['parameters'])) {
+            parse_str($urlParams['parameters'], $parameters);
+        }
+        $parameters['type'] = $urlParams['pagetype'] ?? 0;
+        $parameters['_language'] = $request->getAttribute('language', null);
         $uri = $site->getRouter()->generateUri(
             (int)$urlParams['pageuid'],
-            ['type' => $urlParams['pagetype'] ?? 0, '_language' => $request->getAttribute('language', null)],
+            $parameters,
             '',
             RouterInterface::ABSOLUTE_URL
         );

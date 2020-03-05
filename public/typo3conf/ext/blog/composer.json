@@ -43,6 +43,9 @@
         "typo3/cms": {
             "cms-package-dir": "{$vendor-dir}/typo3/cms",
             "web-dir": ".build/web"
+        },
+        "branch-alias": {
+            "dev-v9.1": "9.1.x-dev"
         }
     },
     "scripts": {
@@ -53,7 +56,7 @@
             "@t3g:test:php:unit"
         ],
         "t3g:cgl": [
-            "php-cs-fixer fix --config Build/.php_cs.dist --format=junit > logs/php-cs-fixer.xml"
+            "php-cs-fixer fix --format=junit > logs/php-cs-fixer.xml"
         ],
         "post-autoload-dump": [
             "mkdir -p .build/web/typo3conf/ext/",
@@ -76,6 +79,11 @@
         "typo3fluid/fluid": "^2.5.0"
     },
     "require-dev": {
+        "typo3/cms-belog": "^9.5.1",
+        "typo3/cms-filelist": "^9.5.1",
+        "typo3/cms-lowlevel": "^9.5.1",
+        "typo3/cms-tstemplate": "^9.5.1",
+        "typo3/cms-rte-ckeditor": "^9.5.1",
         "friendsofphp/php-cs-fixer": "^2.12",
         "roave/security-advisories": "dev-master",
         "t3g/blog-template-test": "^1.0.0",

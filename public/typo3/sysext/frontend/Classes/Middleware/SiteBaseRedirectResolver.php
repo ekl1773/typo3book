@@ -31,6 +31,10 @@ use TYPO3\CMS\Frontend\Page\PageAccessFailureReasons;
 /**
  * Resolves redirects of site if base is not /
  * Can be replaced or extended by extensions if GeoIP-based or user-agent based language redirects need to happen.
+ *
+ * Please note that the redirect usually does not contain the Query Parameters, as special query parameters
+ * like "id", "L" and "cHash" could then result in an error loop.
+ * One special case (adding a "/") is keeping the query parameters though.
  */
 class SiteBaseRedirectResolver implements MiddlewareInterface
 {
@@ -50,8 +54,15 @@ class SiteBaseRedirectResolver implements MiddlewareInterface
         // Usually called when "https://www.example.com" was entered, but all sites have "https://www.example.com/lang-key/"
         // So a redirect to the first possible language is done.
         if ($site instanceof Site && !($language instanceof SiteLanguage)) {
-            $language = $site->getDefaultLanguage();
-            return new RedirectResponse($language->getBase(), 307);
+            if ($routeResult instanceof SiteRouteResult && $routeResult->getTail() === '') {
+                $language = $site->getDefaultLanguage();
+                return new RedirectResponse($language->getBase(), 307);
+            }
+            return GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                $request,
+                'The requested page does not exist',
+                ['code' => PageAccessFailureReasons::PAGE_NOT_FOUND]
+            );
         }
 
         // Language is found, and hidden but also not visible to the BE user, this needs to fail
@@ -69,11 +80,6 @@ class SiteBaseRedirectResolver implements MiddlewareInterface
             // a URL was called via "/fr-FR/" but the page is actually called "/fr-FR", let's do a redirect
             if ($tail === '/') {
                 $uri = $requestedUri->withPath(rtrim($requestedUri->getPath(), '/'));
-                return new RedirectResponse($uri, 307);
-            }
-            // Request was "/fr-FR" but the site is actually called "/fr-FR/", let's do a redirect
-            if ($tail === '' && $language->getBase()->getPath() !== $requestedUri->getPath()) {
-                $uri = $requestedUri->withPath($requestedUri->getPath() . '/');
                 return new RedirectResponse($uri, 307);
             }
         }

@@ -414,6 +414,8 @@ class ExtendedFileUtility extends BasicFileUtility
                         } else {
                             $brokenReferences[] = $fileReferenceRow['ref_uid'];
                         }
+                    } else {
+                        $shortcutContent[] = '[record:' . $fileReferenceRow['tablename'] . ':' . $fileReferenceRow['recuid'] . ']';
                     }
                 }
                 if (!empty($brokenReferences)) {
@@ -857,11 +859,16 @@ class ExtendedFileUtility extends BasicFileUtility
             try {
                 // Try to rename the Folder
                 $resultObject = $sourceFileObject->rename($targetFile);
+                $newFolderName = $resultObject->getName();
                 $this->writeLog(5, 0, 2, 'Directory renamed from "%s" to "%s"', [$sourceFile, $targetFile]);
-                if ($sourceFile === $targetFile) {
+                if ($sourceFile === $newFolderName) {
                     $this->addMessageToFlashMessageQueue('FileUtility.DirectoryRenamedSameName', [$sourceFile], FlashMessage::INFO);
                 } else {
-                    $this->addMessageToFlashMessageQueue('FileUtility.DirectoryRenamedFromTo', [$sourceFile, $targetFile], FlashMessage::OK);
+                    if ($newFolderName === $targetFile) {
+                        $this->addMessageToFlashMessageQueue('FileUtility.DirectoryRenamedFromTo', [$sourceFile, $newFolderName], FlashMessage::OK);
+                    } else {
+                        $this->addMessageToFlashMessageQueue('FileUtility.DirectoryRenamedFromToCharReplaced', [$sourceFile, $newFolderName], FlashMessage::WARNING);
+                    }
                 }
             } catch (InsufficientUserPermissionsException $e) {
                 $this->writeLog(5, 1, 111, 'You are not allowed to rename directories!', []);

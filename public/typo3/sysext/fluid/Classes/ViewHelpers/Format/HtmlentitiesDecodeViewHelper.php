@@ -18,24 +18,33 @@ use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
- * Applies html_entity_decode() to a value
- * @see http://www.php.net/html_entity_decode
+ * Applies :php:`html_entity_decode()` to a value.
+ * See https://www.php.net/html_entity_decode.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="default notation">
- * <f:format.htmlentitiesDecode>{text}</f:format.htmlentitiesDecode>
- * </code>
- * <output>
- * Text with &amp; &quot; &lt; &gt; replaced by unescaped entities (html_entity_decode applied).
- * </output>
+ * Default notation
+ * ----------------
  *
- * <code title="inline notation">
- * {text -> f:format.htmlentitiesDecode(encoding: 'ISO-8859-1')}
- * </code>
- * <output>
- * Text with &amp; &quot; &lt; &gt; replaced by unescaped entities (html_entity_decode applied).
- * </output>
+ * ::
+ *
+ *    <f:format.htmlentitiesDecode>{text}</f:format.htmlentitiesDecode>
+ *
+ * Text containing the following escaped signs: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``, will be processed by :php:`html_entity_decode()`.
+ * These will result in: ``&`` ``"`` ``'`` ``<`` ``>``.
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {text -> f:format.htmlentitiesDecode(encoding: 'ISO-8859-1')}
+ *
+ * Text containing the following escaped signs: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``, will be processed by :php:`html_entity_decode()`.
+ * These will result in: ``&`` ``"`` ``'`` ``<`` ``>``.
+ *
+ * But encoded as ISO-8859-1.
  */
 class HtmlentitiesDecodeViewHelper extends AbstractEncodingViewHelper
 {
@@ -69,7 +78,7 @@ class HtmlentitiesDecodeViewHelper extends AbstractEncodingViewHelper
     /**
      * Converts all HTML entities to their applicable characters as needed using PHPs html_entity_decode() function.
      *
-     * @see http://www.php.net/html_entity_decode
+     * @see https://www.php.net/html_entity_decode
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext

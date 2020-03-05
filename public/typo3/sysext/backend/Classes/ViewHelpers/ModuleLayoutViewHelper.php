@@ -23,20 +23,24 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 use TYPO3Fluid\Fluid\View\Exception;
 
 /**
- * A view helper for having properly styled backend modules.
+ * A ViewHelper for having properly styled backend modules.
  * It is recommended to use it in Fluid Layouts.
  * It will render the required HTML for the doc header.
  * All module specific output and further configuration of the doc header
- * must be rendered as children of this view helper.
- * = Examples =
- * <code>
- * <be:moduleLayout>
- *     <f:render section="content" />
- * </be:moduleLayout>
- * </code>
- * <output>
- * <!-- HTML of the backend module -->
- * </output>
+ * must be rendered as children of this ViewHelper.
+ *
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <be:moduleLayout>
+ *       <f:render section="content" />
+ *    </be:moduleLayout>
+ *
+ * Output::
+ *
+ *    <!-- HTML of the backend module -->
  */
 class ModuleLayoutViewHelper extends AbstractViewHelper
 {

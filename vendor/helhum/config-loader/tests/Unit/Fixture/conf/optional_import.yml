@@ -1,2 +1,0 @@
-imports:
-    - {resource: not_here.yml, optional: true}

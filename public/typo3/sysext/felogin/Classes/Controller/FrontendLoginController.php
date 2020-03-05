@@ -24,6 +24,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Session\SessionManager;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
@@ -136,7 +137,9 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
         $this->pi_initPIflexForm();
         $this->mergeflexFormValuesIntoConf();
         // Get storage PIDs:
-        if ($this->conf['storagePid']) {
+        if ((bool)($GLOBALS['TYPO3_CONF_VARS']['FE']['checkFeUserPid'] ?? false) === false) {
+            $this->spid = 0;
+        } elseif ($this->conf['storagePid']) {
             if ((int)$this->conf['recursive']) {
                 $this->spid = $this->pi_getPidList($this->conf['storagePid'], (int)$this->conf['recursive']);
             } else {
@@ -206,10 +209,10 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
             }
         }
         // Adds hook for processing of extra item markers / special
-        $_params = [
-            'content' => $content
-        ];
         foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['felogin']['postProcContent'] ?? [] as $_funcRef) {
+            $_params = [
+                'content' => $content
+            ];
             $content = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
         return $this->conf['wrapContentInBaseClass'] ? $this->pi_wrapInBaseClass($content) : $content;
@@ -233,28 +236,33 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
                 $userTable = $this->frontendController->fe_user->user_table;
                 $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($userTable);
                 $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
+                $constraints = [
+                    $queryBuilder->expr()->orX(
+                        $queryBuilder->expr()->eq(
+                            'email',
+                            $queryBuilder->createNamedParameter($this->piVars['forgot_email'], \PDO::PARAM_STR)
+                        ),
+                        $queryBuilder->expr()->eq(
+                            'username',
+                            $queryBuilder->createNamedParameter($this->piVars['forgot_email'], \PDO::PARAM_STR)
+                        )
+                    )
+                ];
+
+                if ((bool)($GLOBALS['TYPO3_CONF_VARS']['FE']['checkFeUserPid'] ?? false)) {
+                    $constraints[] = $queryBuilder->expr()->in(
+                        'pid',
+                        $queryBuilder->createNamedParameter(
+                            GeneralUtility::intExplode(',', $this->spid),
+                            Connection::PARAM_INT_ARRAY
+                        )
+                    );
+                }
+
                 $row = $queryBuilder
                     ->select('*')
                     ->from($userTable)
-                    ->where(
-                        $queryBuilder->expr()->orX(
-                            $queryBuilder->expr()->eq(
-                                'email',
-                                $queryBuilder->createNamedParameter($this->piVars['forgot_email'], \PDO::PARAM_STR)
-                            ),
-                            $queryBuilder->expr()->eq(
-                                'username',
-                                $queryBuilder->createNamedParameter($this->piVars['forgot_email'], \PDO::PARAM_STR)
-                            )
-                        ),
-                        $queryBuilder->expr()->in(
-                            'pid',
-                            $queryBuilder->createNamedParameter(
-                                GeneralUtility::intExplode(',', $this->spid),
-                                Connection::PARAM_INT_ARRAY
-                            )
-                        )
-                    )
+                    ->where(...$constraints)
                     ->execute()
                     ->fetch();
 
@@ -334,7 +342,13 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
             $user = $this->pi_getRecord('fe_users', (int)$uid);
             $userHash = $user['felogin_forgotHash'];
             $compareHash = explode('|', $userHash);
-            if (!$compareHash || !$compareHash[1] || $compareHash[0] < time() || $hash[0] != $compareHash[0] || md5($hash[1]) != $compareHash[1]) {
+            if (strlen($compareHash[1]) === 40) {
+                $hashEquals = hash_equals($compareHash[1], GeneralUtility::hmac((string)$hash[1]));
+            } else {
+                // backward-compatibility for previous MD5 hashes
+                $hashEquals = hash_equals($compareHash[1], md5($hash[1]));
+            }
+            if (!$compareHash || !$compareHash[1] || $compareHash[0] < time() || !hash_equals($compareHash[0], $hash[0]) || !$hashEquals) {
                 $markerArray['###STATUS_MESSAGE###'] = $this->getDisplayText(
                     'change_password_notvalid_message',
                     $this->conf['changePasswordNotValidMessage_stdWrap.']
@@ -347,17 +361,17 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
                     if (strlen($postData['password1']) < $minLength) {
                         $markerArray['###STATUS_MESSAGE###'] = sprintf(
                             $this->getDisplayText(
-                            'change_password_tooshort_message',
-                            $this->conf['changePasswordTooShortMessage_stdWrap.']
-                        ),
+                                'change_password_tooshort_message',
+                                $this->conf['changePasswordTooShortMessage_stdWrap.']
+                            ),
                             $minLength
                         );
                     } elseif ($postData['password1'] != $postData['password2']) {
                         $markerArray['###STATUS_MESSAGE###'] = sprintf(
                             $this->getDisplayText(
-                            'change_password_notequal_message',
-                            $this->conf['changePasswordNotEqualMessage_stdWrap.']
-                        ),
+                                'change_password_notequal_message',
+                                $this->conf['changePasswordNotEqualMessage_stdWrap.']
+                            ),
                             $minLength
                         );
                     } else {
@@ -395,6 +409,7 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
                                 )
                             )
                             ->execute();
+                        $this->invalidateUserSessions((int)$user['uid']);
 
                         $markerArray['###STATUS_MESSAGE###'] = $this->getDisplayText(
                             'change_password_done_message',
@@ -441,7 +456,7 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
         $validEndString = date($this->conf['dateFormat'], $validEnd);
         $hash = md5(GeneralUtility::makeInstance(Random::class)->generateRandomBytes(64));
         $randHash = $validEnd . '|' . $hash;
-        $randHashDB = $validEnd . '|' . md5($hash);
+        $randHashDB = $validEnd . '|' . GeneralUtility::hmac($hash);
 
         // Write hash to DB
         $userTable = $this->frontendController->fe_user->user_table;
@@ -1109,5 +1124,17 @@ class FrontendLoginController extends AbstractPlugin implements LoggerAwareInter
             }
         }
         return false;
+    }
+
+    /**
+     * Invalidate all frontend user sessions by given user id
+     *
+     * @param int $userId the user UID
+     */
+    protected function invalidateUserSessions(int $userId)
+    {
+        $sessionManager = GeneralUtility::makeInstance(SessionManager::class);
+        $sessionBackend = $sessionManager->getSessionBackend('FE');
+        $sessionManager->invalidateAllSessionsByUserId($sessionBackend, $userId, $this->frontendController->fe_user);
     }
 }

@@ -15,7 +15,6 @@ namespace TYPO3\CMS\FluidStyledContent\ViewHelpers\Link;
  */
 
 use TYPO3\CMS\Core\Resource\FileInterface;
-use TYPO3\CMS\Core\Resource\FileReference;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
@@ -24,7 +23,7 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A view helper for creating a link for an image popup.
+ * A ViewHelper for creating a link for an image popup.
  *
  * = Example =
  *
@@ -52,7 +51,7 @@ class ClickEnlargeViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        $this->registerArgument('image', FileReference::class, 'The original image file', true);
+        $this->registerArgument('image', FileInterface::class, 'The original image file', true);
         $this->registerArgument(
             'configuration',
             'mixed',

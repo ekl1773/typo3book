@@ -152,7 +152,19 @@ class SiteLanguage
             $this->fallbackType = $configuration['fallbackType'];
         }
         if (isset($configuration['fallbacks'])) {
-            $this->fallbackLanguageIds = is_array($configuration['fallbacks']) ? $configuration['fallbacks'] : explode(',', $configuration['fallbacks']);
+            $fallbackLanguageIds = $configuration['fallbacks'];
+
+            // It is important to distinct between "0" and "" so, empty() should not be used here
+            if (is_string($fallbackLanguageIds)) {
+                if ($fallbackLanguageIds !== '') {
+                    $fallbackLanguageIds = explode(',', $fallbackLanguageIds);
+                } else {
+                    $fallbackLanguageIds = [];
+                }
+            } elseif (is_scalar($fallbackLanguageIds)) {
+                $fallbackLanguageIds = [$fallbackLanguageIds];
+            }
+            $this->fallbackLanguageIds = array_map('intval', $fallbackLanguageIds);
         }
         if (isset($configuration['enabled'])) {
             $this->enabled = (bool)$configuration['enabled'];

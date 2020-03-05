@@ -26,6 +26,7 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Special data provider for the sites configuration module.
@@ -87,17 +88,24 @@ class SiteTcaInline extends AbstractDatabaseRecordProvider implements FormDataPr
             if ($table === 'pages') {
                 $liveVersionId = BackendUtility::getLiveVersionIdOfRecord('pages', $row['uid']);
                 $pid = $liveVersionId ?? $row['uid'];
-            } elseif ($row['pid'] < 0) {
+            } elseif (($row['pid'] ?? 0) < 0) {
                 $prevRec = BackendUtility::getRecord($table, abs($row['pid']));
                 $pid = $prevRec['pid'];
             } else {
-                $pid = $row['pid'];
+                $pid = $row['pid'] ?? 0;
             }
-            $pageRecord = BackendUtility::getRecord('pages', $pid);
-            if ((int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']] > 0) {
-                $pid = (int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']];
+            if (MathUtility::canBeInterpretedAsInteger($pid)) {
+                $pageRecord = BackendUtility::getRecord('pages', (int)$pid);
+                if ((int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']] > 0) {
+                    $pid = (int)$pageRecord[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']];
+                }
+            } elseif (strpos($pid, 'NEW') !== 0) {
+                throw new \RuntimeException(
+                    'inlineFirstPid should either be an integer or a "NEW..." string',
+                    1521220141
+                );
             }
-            $result['inlineFirstPid'] = (int)$pid;
+            $result['inlineFirstPid'] = $pid;
         }
         return $result;
     }
@@ -146,7 +154,7 @@ class SiteTcaInline extends AbstractDatabaseRecordProvider implements FormDataPr
             }
         }
 
-        // If we are dealing with ite_language, we *always* force a relation to sys_language "0"
+        // If we are dealing with site_language, we *always* force a relation to sys_language "0"
         if ($foreignTable === 'site_language' && $result['command'] === 'edit') {
             // If edit, find out if a child using sys_language "0" exists, else add it on top
             $defaultSysSiteLanguageChildFound = false;

@@ -18,6 +18,7 @@ use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Driver\Statement;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Authentication\AbstractUserAuthentication;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Context\LanguageAspect;
@@ -1373,6 +1374,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 $a2 = '</a>';
                 $this->getTypoScriptFrontendController()->setJS('openPic');
             } else {
+                $conf['linkParams.']['directImageLink'] = (bool)$conf['directImageLink'];
                 $conf['linkParams.']['parameter'] = $url;
                 $string = $this->typoLink($string, $conf['linkParams.']);
             }
@@ -1605,6 +1607,13 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 // so additional stdWrap calls within the functions can be removed, since the result will be the same
                 if (!empty($conf[$functionProperties]) && !GeneralUtility::inList($stdWrapDisabledFunctionTypes, $functionType)) {
                     if (array_intersect_key($this->stdWrapOrder, $conf[$functionProperties])) {
+                        // Check if there's already content available before processing
+                        // any ifEmpty or ifBlank stdWrap properties
+                        if (($functionName === 'ifEmpty' && !empty($content)) ||
+                            ($functionName === 'ifBlank' && $content !== '')) {
+                            continue;
+                        }
+
                         $conf[$functionName] = $this->stdWrap($conf[$functionName] ?? '', $conf[$functionProperties] ?? []);
                     }
                 }
@@ -1752,14 +1761,16 @@ class ContentObjectRenderer implements LoggerAwareInterface
      */
     public function stdWrap_lang($content = '', $conf = [])
     {
-        $tsfe = $this->getTypoScriptFrontendController();
-        if (
-            isset($conf['lang.'])
-            && isset($tsfe->config['config']['language'])
-            && $tsfe->config['config']['language']
-            && isset($conf['lang.'][$tsfe->config['config']['language']])
-        ) {
-            $content = $conf['lang.'][$tsfe->config['config']['language']];
+        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+        $siteLanguage = $request ? $request->getAttribute('language') : null;
+        if ($siteLanguage instanceof SiteLanguage) {
+            $currentLanguageCode = $siteLanguage->getTypo3Language();
+        } else {
+            $tsfe = $this->getTypoScriptFrontendController();
+            $currentLanguageCode = $tsfe->config['config']['language'] ?? null;
+        }
+        if ($currentLanguageCode && isset($conf['lang.'][$currentLanguageCode])) {
+            $content = $conf['lang.'][$currentLanguageCode];
         }
         return $content;
     }
@@ -2464,8 +2475,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
 
     /**
      * encodeForJavaScriptValue
-     * Escapes content to be used inside JavaScript strings. No quotes are added around the value
-     * as this can easily be done in TypoScript
+     * Escapes content to be used inside JavaScript strings. Single quotes are added around the value.
      *
      * @param string $content Input value undergoing processing in this function
      * @return string The processed input value
@@ -3907,19 +3917,21 @@ class ContentObjectRenderer implements LoggerAwareInterface
             $replace = isset($configuration['replace.'])
                 ? $this->stdWrap($configuration['replace'] ?? null, $configuration['replace.'])
                 : $configuration['replace'] ?? null;
+            $useRegularExpression = false;
             // Determines whether regular expression shall be used
             if (isset($configuration['useRegExp'])
                 || (isset($configuration['useRegExp.']) && $configuration['useRegExp.'])
             ) {
-                $useRegularExpression = isset($configuration['useRegExp.']) ? $this->stdWrap($configuration['useRegExp'], $configuration['useRegExp.']) : $configuration['useRegExp'];
+                $useRegularExpression = isset($configuration['useRegExp.']) ? (bool)$this->stdWrap($configuration['useRegExp'], $configuration['useRegExp.']) : (bool)$configuration['useRegExp'];
             }
+            $useOptionSplitReplace = false;
             // Determines whether replace-pattern uses option-split
             if (isset($configuration['useOptionSplitReplace']) || isset($configuration['useOptionSplitReplace.'])) {
-                $useOptionSplitReplace = isset($configuration['useOptionSplitReplace.']) ? $this->stdWrap($configuration['useOptionSplitReplace'], $configuration['useOptionSplitReplace.']) : $configuration['useOptionSplitReplace'];
+                $useOptionSplitReplace = isset($configuration['useOptionSplitReplace.']) ? (bool)$this->stdWrap($configuration['useOptionSplitReplace'], $configuration['useOptionSplitReplace.']) : (bool)$configuration['useOptionSplitReplace'];
             }
 
             // Performs a replacement by preg_replace()
-            if (isset($useRegularExpression)) {
+            if ($useRegularExpression) {
                 // Get separator-character which precedes the string and separates search-string from the modifiers
                 $separator = $search[0];
                 $startModifiers = strrpos($search, $separator);
@@ -3929,9 +3941,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
                     $modifiers = str_replace('e', '', $modifiers);
                     $search = substr($search, 0, $startModifiers + 1) . $modifiers;
                 }
-                if (empty($useOptionSplitReplace)) {
-                    $content = preg_replace($search, $replace, $content);
-                } else {
+                if ($useOptionSplitReplace) {
                     // init for replacement
                     $splitCount = preg_match_all($search, $content, $matches);
                     $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
@@ -3943,26 +3953,26 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         return preg_replace($search, $replaceArray[$replaceCount - 1][0], $match[0]);
                     };
                     $content = preg_replace_callback($search, $replaceCallback, $content);
-                }
-            } else {
-                if (empty($useOptionSplitReplace)) {
-                    $content = str_replace($search, $replace, $content);
                 } else {
-                    // turn search-string into a preg-pattern
-                    $searchPreg = '#' . preg_quote($search, '#') . '#';
-
-                    // init for replacement
-                    $splitCount = preg_match_all($searchPreg, $content, $matches);
-                    $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
-                    $replaceArray = $typoScriptService->explodeConfigurationForOptionSplit([$replace], $splitCount);
-                    $replaceCount = 0;
-
-                    $replaceCallback = function () use ($replaceArray, $search, &$replaceCount) {
-                        $replaceCount++;
-                        return $replaceArray[$replaceCount - 1][0];
-                    };
-                    $content = preg_replace_callback($searchPreg, $replaceCallback, $content);
+                    $content = preg_replace($search, $replace, $content);
                 }
+            } elseif ($useOptionSplitReplace) {
+                // turn search-string into a preg-pattern
+                $searchPreg = '#' . preg_quote($search, '#') . '#';
+
+                // init for replacement
+                $splitCount = preg_match_all($searchPreg, $content, $matches);
+                $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
+                $replaceArray = $typoScriptService->explodeConfigurationForOptionSplit([$replace], $splitCount);
+                $replaceCount = 0;
+
+                $replaceCallback = function () use ($replaceArray, $search, &$replaceCount) {
+                    $replaceCount++;
+                    return $replaceArray[$replaceCount - 1][0];
+                };
+                $content = preg_replace_callback($searchPreg, $replaceCallback, $content);
+            } else {
+                $content = str_replace($search, $replace, $content);
             }
         }
         return $content;
@@ -4729,8 +4739,8 @@ class ContentObjectRenderer implements LoggerAwareInterface
                     $processedFileObject = $fileObject->process(ProcessedFile::CONTEXT_IMAGECROPSCALEMASK, $processingConfiguration);
                     if ($processedFileObject->isProcessed()) {
                         $imageResource = [
-                            0 => $processedFileObject->getProperty('width'),
-                            1 => $processedFileObject->getProperty('height'),
+                            0 => (int)$processedFileObject->getProperty('width'),
+                            1 => (int)$processedFileObject->getProperty('height'),
                             2 => $processedFileObject->getExtension(),
                             3 => $processedFileObject->getPublicUrl(),
                             'origFile' => $fileObject->getPublicUrl(),
@@ -5101,6 +5111,8 @@ class ContentObjectRenderer implements LoggerAwareInterface
                         if ($site instanceof Site) {
                             if ($key === 'identifier') {
                                 $retVal = $site->getIdentifier();
+                            } elseif ($key === 'base') {
+                                $retVal = $site->getBase();
                             } else {
                                 try {
                                     $retVal = ArrayUtility::getValueByPath($site->getConfiguration(), $key, '.');
@@ -5338,8 +5350,8 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 // Resource was not found
                 return $linkText;
             }
-        } elseif (in_array(strtolower(trim($linkHandlerKeyword)), ['javascript', 'data'], true)) {
-            // Disallow direct javascript: or data: links
+        } elseif (in_array(strtolower(preg_replace('#\s|[[:cntrl:]]#', '', $linkHandlerKeyword)), ['javascript', 'data'], true)) {
+            // Disallow insecure scheme's like javascript: or data:
             return $linkText;
         } else {
             $linkParameter = $linkParameterParts['url'];
@@ -5397,7 +5409,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
         $title = $resolvedLinkParameters['title'];
 
         if (!$linkParameter) {
-            return $linkText;
+            return $this->resolveAnchorLink($linkText, $conf ?? []);
         }
 
         // Detecting kind of link and resolve all necessary parameters
@@ -5419,6 +5431,9 @@ class ContentObjectRenderer implements LoggerAwareInterface
             );
             try {
                 list($this->lastTypoLinkUrl, $linkText, $target) = $linkBuilder->build($linkDetails, $linkText, $target, $conf);
+                $this->lastTypoLinkTarget = htmlspecialchars($target);
+                $this->lastTypoLinkLD['target'] = htmlspecialchars($target);
+                $this->lastTypoLinkLD['totalUrl'] = $this->lastTypoLinkUrl;
             } catch (UnableToLinkException $e) {
                 $this->logger->debug(sprintf('Unable to link "%s": %s', $e->getLinkText(), $e->getMessage()), ['exception' => $e]);
 
@@ -5427,13 +5442,18 @@ class ContentObjectRenderer implements LoggerAwareInterface
             }
         } elseif (isset($linkDetails['url'])) {
             $this->lastTypoLinkUrl = $linkDetails['url'];
+            $this->lastTypoLinkTarget = htmlspecialchars($target);
+            $this->lastTypoLinkLD['target'] = htmlspecialchars($target);
+            $this->lastTypoLinkLD['totalUrl'] = $this->lastTypoLinkUrl;
         } else {
             return $linkText;
         }
 
+        // We need to backup the URL because ATagParams might call typolink again and change the last URL.
+        $url = $this->lastTypoLinkUrl;
         $finalTagParts = [
             'aTagParams' => $this->getATagParams($conf) . $this->extLinkATagParams($this->lastTypoLinkUrl, $linkDetails['type']),
-            'url'        => $this->lastTypoLinkUrl,
+            'url'        => $url,
             'TYPE'       => $linkDetails['type']
         ];
 
@@ -5731,7 +5751,8 @@ class ContentObjectRenderer implements LoggerAwareInterface
             if ($tsfe->spamProtectEmailAddresses) {
                 $mailToUrl = $this->encryptEmail($mailToUrl, $tsfe->spamProtectEmailAddresses);
                 if ($tsfe->spamProtectEmailAddresses !== 'ascii') {
-                    $mailToUrl = 'javascript:linkTo_UnCryptMailto(' . GeneralUtility::quoteJSvalue($mailToUrl) . ');';
+                    $encodedForJsAndHref = rawurlencode(GeneralUtility::quoteJSvalue($mailToUrl));
+                    $mailToUrl = 'javascript:linkTo_UnCryptMailto(' . $encodedForJsAndHref . ');';
                 }
                 $atLabel = trim($tsfe->config['config']['spamProtectEmailAddresses_atSubst']) ?: '(at)';
                 $spamProtectedMailAddress = str_replace('@', $atLabel, htmlspecialchars($mailAddress));
@@ -6444,12 +6465,15 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 'tstamp' => $GLOBALS['EXEC_TIME'],
             ];
 
-            $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('cache_treelist');
-            try {
-                $connection->transactional(function ($connection) use ($cacheEntry) {
-                    $connection->insert('cache_treelist', $cacheEntry);
-                });
-            } catch (\Throwable $e) {
+            // Only add to cache if not logged into TYPO3 Backend
+            if (!$this->getFrontendBackendUser() instanceof AbstractUserAuthentication) {
+                $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('cache_treelist');
+                try {
+                    $connection->transactional(function ($connection) use ($cacheEntry) {
+                        $connection->insert('cache_treelist', $cacheEntry);
+                    });
+                } catch (\Throwable $e) {
+                }
             }
         }
 
@@ -6468,7 +6492,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
     public function searchWhere($searchWords, $searchFieldList, $searchTable)
     {
         if (!$searchWords) {
-            return ' AND 1=1';
+            return '';
         }
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
@@ -6495,6 +6519,10 @@ class ContentObjectRenderer implements LoggerAwareInterface
             if ($searchWordConstraint->count()) {
                 $where->add($searchWordConstraint);
             }
+        }
+
+        if ((string)$where === '') {
+            return '';
         }
 
         return ' AND ' . (string)$where;
@@ -6789,10 +6817,10 @@ class ContentObjectRenderer implements LoggerAwareInterface
             $knownAliases[$tableReference] = true;
 
             $fromClauses[$tableReference] = $tableSql . $this->getQueryArrayJoinHelper(
-                    $tableReference,
-                    $queryBuilder->getQueryPart('join'),
-                    $knownAliases
-                );
+                $tableReference,
+                $queryBuilder->getQueryPart('join'),
+                $knownAliases
+            );
         }
 
         $queryParts['SELECT'] = implode(', ', $queryBuilder->getQueryPart('select'));
@@ -7019,7 +7047,7 @@ class ContentObjectRenderer implements LoggerAwareInterface
             // Sys language content is set to zero/-1 - and it is expected that whatever routine processes the output will
             // OVERLAY the records with localized versions!
             $languageQuery = $expressionBuilder->in($languageField, [0, -1]);
-            // Use this option to include records that don't have a default translation ("free mode")
+            // Use this option to include records that don't have a default language counterpart ("free mode")
             // (originalpointerfield is 0 and the language field contains the requested language)
             if (isset($conf['includeRecordsWithoutDefaultTranslation']) || $conf['includeRecordsWithoutDefaultTranslation.']) {
                 $includeRecordsWithoutDefaultTranslation = isset($conf['includeRecordsWithoutDefaultTranslation.']) ?
@@ -7033,15 +7061,15 @@ class ContentObjectRenderer implements LoggerAwareInterface
                 $languageQuery = $expressionBuilder->orX(
                     $languageQuery,
                     $expressionBuilder->andX(
-                        $expressionBuilder->eq($localizationParentField, 0),
+                        $expressionBuilder->eq($table . '.' . $localizationParentField, 0),
                         $expressionBuilder->eq($languageField, $languageAspect->getContentId())
                     )
                 );
             }
             return $languageQuery;
         }
-        // No overlays = only fetch records given for the requested language
-        return $expressionBuilder->eq($languageField, $languageAspect->getContentId());
+        // No overlays = only fetch records given for the requested language and "all languages"
+        return $expressionBuilder->in($languageField, [$languageAspect->getContentId(), -1]);
     }
 
     /**
@@ -7497,5 +7525,26 @@ class ContentObjectRenderer implements LoggerAwareInterface
     protected function getTypoScriptFrontendController()
     {
         return $this->typoScriptFrontendController ?: $GLOBALS['TSFE'];
+    }
+
+    /**
+     * Support anchors without href value
+     * Changes ContentObjectRenderer::typolink to render a tag without href,
+     * if id or name attribute is present.
+     *
+     * @param string $linkText
+     * @param array $conf Typolink configuration decoded as array
+     * @return string Full a-Tag or just the linktext if id or name are not set.
+     */
+    protected function resolveAnchorLink(string $linkText, array $conf): string
+    {
+        $anchorTag = '<a ' . $this->getATagParams($conf) . '>';
+        $aTagParams = GeneralUtility::get_tag_attributes($anchorTag);
+        // If it looks like a anchor tag, render it anyway
+        if (isset($aTagParams['id']) || isset($aTagParams['name'])) {
+            return $anchorTag . $linkText . '</a>';
+        }
+        // Otherwise just return the link text
+        return $linkText;
     }
 }
