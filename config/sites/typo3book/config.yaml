@@ -2,6 +2,9 @@ rootPageId: 1
 base: 'https://www.typo3book.com/'
 baseVariants:
   -
+    base: 'https://www.typo3book.com/'
+    conditions: 'applicationContext == "Production"'
+  -
     base: 'http://typo3book.ddev.local/'
     condition: 'applicationContext == "Development"'
 languages:
